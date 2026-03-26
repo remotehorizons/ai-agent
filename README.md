@@ -75,6 +75,8 @@ npm run start:web
 - `AGENT_SYSTEM_PROMPT`: optional custom system instruction
 - `OPENAI_TEMPERATURE`: optional sampling value
 
+In the browser UI, `Max Agents` defaults to `50` and caps manual additions, team composition, and helper spawning.
+
 ## Model Flexibility
 
 By default the agent talks to OpenAI using `OPENAI_API_KEY`. To switch models, change `OPENAI_MODEL`.

@@ -1,5 +1,6 @@
 const palette = document.querySelector("#palette");
 const briefInput = document.querySelector("#brief-input");
+const maxAgentsInput = document.querySelector("#maxAgents");
 const modelSelect = document.querySelector("#modelSelect");
 const customModelGroup = document.querySelector("#customModelGroup");
 const customModelInput = document.querySelector("#customModel");
@@ -166,6 +167,7 @@ const state = {
 };
 
 const workspaceStorageKey = "ai-agent-workspace/v1";
+const defaultMaxAgents = 50;
 
 function uid(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -181,6 +183,23 @@ function defaultMetrics() {
     directMessages: 0,
     spawnedAgents: 0,
   };
+}
+
+function parseMaxAgents(value) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return defaultMaxAgents;
+  }
+
+  return parsed;
+}
+
+function getMaxAgents() {
+  return parseMaxAgents(maxAgentsInput.value);
+}
+
+function syncMaxAgentsInput() {
+  maxAgentsInput.value = String(getMaxAgents());
 }
 
 function canUseLocalStorage() {
@@ -217,6 +236,7 @@ function serializeWorkspace() {
     insights: state.insights,
     controls: {
       brief: briefInput.value,
+      maxAgents: maxAgentsInput.value,
       model: modelSelect.value,
       customModel: customModelInput.value,
       temperature: temperatureInput.value,
@@ -298,6 +318,8 @@ function restoreWorkspace() {
     const controls =
       parsed.controls && typeof parsed.controls === "object" ? parsed.controls : {};
     briefInput.value = typeof controls.brief === "string" ? controls.brief : "";
+    maxAgentsInput.value =
+      typeof controls.maxAgents === "string" ? controls.maxAgents : String(defaultMaxAgents);
     modelSelect.value = typeof controls.model === "string" ? controls.model : modelSelect.value;
     customModelInput.value =
       typeof controls.customModel === "string" ? controls.customModel : "";
@@ -386,6 +408,14 @@ function invalidateAllAgentSessions() {
 }
 
 function createAgent(roleId, options = {}) {
+  if (state.agents.length >= getMaxAgents()) {
+    addActivity(
+      "Agent limit reached",
+      `The workspace is capped at ${getMaxAgents()} agents. Raise Max Agents to add more.`,
+    );
+    return null;
+  }
+
   const role = getRoleConfig(roleId);
   const numberForRole =
     state.agents.filter((agent) => agent.roleId === roleId).length + 1;
@@ -422,6 +452,26 @@ function createAgent(roleId, options = {}) {
 
   addActivity(agent.name, options.activity || "Agent created and ready for work.");
   return agent;
+}
+
+function createAgentsWithLimit(roleIds, describeSource) {
+  const availableSlots = Math.max(getMaxAgents() - state.agents.length, 0);
+  const nextRoles = roleIds.slice(0, availableSlots);
+
+  for (const roleId of nextRoles) {
+    createAgent(roleId, {
+      activity: `${getRoleConfig(roleId).label} added from ${describeSource}.`,
+    });
+  }
+
+  if (nextRoles.length < roleIds.length) {
+    addActivity(
+      "Agent limit reached",
+      `Only ${nextRoles.length} of ${roleIds.length} requested agents were added because the workspace cap is ${getMaxAgents()}.`,
+    );
+  }
+
+  return nextRoles.length;
 }
 
 function assignDefaultReviewers() {
@@ -486,9 +536,10 @@ function seedStarterTeam() {
     return;
   }
 
-  for (const roleId of ["pm", "architect", "engineer", "designer", "reviewer", "overseer"]) {
-    createAgent(roleId, { activity: `${getRoleConfig(roleId).label} added to starter team.` });
-  }
+  createAgentsWithLimit(
+    ["pm", "architect", "engineer", "designer", "reviewer", "overseer"],
+    "starter team",
+  );
 
   assignDefaultReviewers();
   const engineer = state.agents.find((agent) => agent.roleId === "engineer");
@@ -501,11 +552,7 @@ function seedStarterTeam() {
 
 function composeTeamMode(modeId) {
   const mode = getTeamModeConfig(modeId);
-  for (const roleId of mode.roles) {
-    createAgent(roleId, {
-      activity: `${getRoleConfig(roleId).label} added from ${mode.label}.`,
-    });
-  }
+  createAgentsWithLimit(mode.roles, mode.label);
   assignDefaultReviewers();
   const overseer = state.agents.find((agent) => agent.roleId === "overseer");
   if (overseer) {
@@ -536,8 +583,9 @@ function renderPalette() {
       <em>${role.canSpawn ? "Leads can expand through this role" : "Create agent"}</em>
     `;
     button.addEventListener("click", () => {
-      createAgent(role.id);
-      assignDefaultReviewers();
+      if (createAgent(role.id)) {
+        assignDefaultReviewers();
+      }
       render();
     });
     palette.appendChild(button);
@@ -1221,11 +1269,14 @@ async function spawnHelpersForSelected() {
         : `${agent.name} recommended expanding the team to reduce delivery risk.`;
 
     for (const suggestion of plan) {
-      createAgent(suggestion.roleId, {
+      const created = createAgent(suggestion.roleId, {
         mission: suggestion.mission,
         spawnedBy: agent.id,
         activity: `${getRoleConfig(suggestion.roleId).label} spawned by ${agent.name}.`,
       });
+      if (!created) {
+        break;
+      }
     }
 
     assignDefaultReviewers();
@@ -1361,6 +1412,10 @@ clearActivityButton.addEventListener("click", () => {
 modelSelect.addEventListener("change", syncModelFields);
 modelSelect.addEventListener("change", invalidateInheritedAgentSessions);
 customModelInput.addEventListener("input", invalidateInheritedAgentSessions);
+maxAgentsInput.addEventListener("input", () => {
+  syncMaxAgentsInput();
+  persistWorkspace();
+});
 temperatureInput.addEventListener("input", invalidateAllAgentSessions);
 baseUrlInput.addEventListener("input", invalidateAllAgentSessions);
 systemPromptInput.addEventListener("input", invalidateAllAgentSessions);
@@ -1369,6 +1424,7 @@ renderPalette();
 const restoredWorkspace = restoreWorkspace();
 syncModelFields();
 syncAgentModelFields();
+syncMaxAgentsInput();
 renderTeamModeDescription();
 renderActivity();
 renderInsights();
