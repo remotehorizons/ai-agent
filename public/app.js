@@ -165,6 +165,8 @@ const state = {
   insights: [],
 };
 
+const workspaceStorageKey = "ai-agent-workspace/v1";
+
 function uid(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -179,6 +181,138 @@ function defaultMetrics() {
     directMessages: 0,
     spawnedAgents: 0,
   };
+}
+
+function canUseLocalStorage() {
+  try {
+    return typeof window !== "undefined" && Boolean(window.localStorage);
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeMetrics(metrics) {
+  const defaults = defaultMetrics();
+  if (!metrics || typeof metrics !== "object") {
+    return defaults;
+  }
+
+  return {
+    runs: Number(metrics.runs) || 0,
+    reviewsRequested: Number(metrics.reviewsRequested) || 0,
+    reviewsCompleted: Number(metrics.reviewsCompleted) || 0,
+    approvalsGranted: Number(metrics.approvalsGranted) || 0,
+    changesRequested: Number(metrics.changesRequested) || 0,
+    directMessages: Number(metrics.directMessages) || 0,
+    spawnedAgents: Number(metrics.spawnedAgents) || 0,
+  };
+}
+
+function serializeWorkspace() {
+  return {
+    selectedAgentId: state.selectedAgentId,
+    agents: state.agents,
+    activity: state.activity,
+    logsByAgent: Object.fromEntries(state.logsByAgent),
+    insights: state.insights,
+    controls: {
+      brief: briefInput.value,
+      model: modelSelect.value,
+      customModel: customModelInput.value,
+      temperature: temperatureInput.value,
+      baseUrl: baseUrlInput.value,
+      systemPrompt: systemPromptInput.value,
+      teamMode: teamModeSelect.value,
+    },
+  };
+}
+
+function persistWorkspace() {
+  if (!canUseLocalStorage()) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      workspaceStorageKey,
+      JSON.stringify(serializeWorkspace()),
+    );
+  } catch {
+    // Ignore persistence failures so the app remains usable.
+  }
+}
+
+function restoreWorkspace() {
+  if (!canUseLocalStorage()) {
+    return false;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(workspaceStorageKey);
+    if (!raw) {
+      return false;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return false;
+    }
+
+    const savedAgents = Array.isArray(parsed.agents) ? parsed.agents : [];
+    const agentIds = new Set();
+
+    state.agents = savedAgents
+      .filter((agent) => agent && typeof agent === "object" && typeof agent.id === "string")
+      .map((agent) => {
+        agentIds.add(agent.id);
+        return {
+          ...agent,
+          reviewers: Array.isArray(agent.reviewers)
+            ? agent.reviewers.filter((reviewerId) => typeof reviewerId === "string")
+            : [],
+          approvals:
+            agent.approvals && typeof agent.approvals === "object" ? agent.approvals : {},
+          metrics: sanitizeMetrics(agent.metrics),
+        };
+      });
+
+    state.selectedAgentId =
+      typeof parsed.selectedAgentId === "string" && agentIds.has(parsed.selectedAgentId)
+        ? parsed.selectedAgentId
+        : state.agents[0]?.id ?? null;
+    state.activity = Array.isArray(parsed.activity) ? parsed.activity : [];
+    state.insights = Array.isArray(parsed.insights) ? parsed.insights : [];
+    state.logsByAgent = new Map(
+      Object.entries(parsed.logsByAgent ?? {}).map(([agentId, entries]) => [
+        agentId,
+        Array.isArray(entries) ? entries : [],
+      ]),
+    );
+
+    for (const agent of state.agents) {
+      if (!state.logsByAgent.has(agent.id)) {
+        state.logsByAgent.set(agent.id, []);
+      }
+    }
+
+    const controls =
+      parsed.controls && typeof parsed.controls === "object" ? parsed.controls : {};
+    briefInput.value = typeof controls.brief === "string" ? controls.brief : "";
+    modelSelect.value = typeof controls.model === "string" ? controls.model : modelSelect.value;
+    customModelInput.value =
+      typeof controls.customModel === "string" ? controls.customModel : "";
+    temperatureInput.value =
+      typeof controls.temperature === "string" ? controls.temperature : "";
+    baseUrlInput.value = typeof controls.baseUrl === "string" ? controls.baseUrl : "";
+    systemPromptInput.value =
+      typeof controls.systemPrompt === "string" ? controls.systemPrompt : "";
+    teamModeSelect.value =
+      typeof controls.teamMode === "string" ? controls.teamMode : teamModeSelect.value;
+
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function getSelectedAgent() {
@@ -735,6 +869,7 @@ function render() {
   renderBoard();
   renderDetails();
   renderInsights();
+  persistWorkspace();
 }
 
 function setPending(isPending) {
@@ -1212,6 +1347,7 @@ deleteAgentButton.addEventListener("click", () => {
 clearActivityButton.addEventListener("click", () => {
   state.activity = [];
   renderActivity();
+  persistWorkspace();
 });
 
 modelSelect.addEventListener("change", syncModelFields);
@@ -1219,21 +1355,25 @@ modelSelect.addEventListener("change", invalidateInheritedAgentSessions);
 customModelInput.addEventListener("input", invalidateInheritedAgentSessions);
 
 renderPalette();
+const restoredWorkspace = restoreWorkspace();
 syncModelFields();
 syncAgentModelFields();
 renderTeamModeDescription();
 renderActivity();
 renderInsights();
 render();
-addInsight({
-  title: "Overseer baseline",
-  body: "Use an overseer to watch approval friction, missed QA coverage, and unnecessary role contention as the team grows.",
-  bullets: [
-    "Architects should spawn engineering and QA capacity when design and system direction are stable.",
-    "Design leads should stay in the approval loop for any UI-heavy implementation lane.",
-  ],
-});
-addActivity(
-  "Workspace ready",
-  "Compose a team mode, run agents, measure workflow health, and let PMs, architects, or overseers expand the crew.",
-);
+
+if (!restoredWorkspace) {
+  addInsight({
+    title: "Overseer baseline",
+    body: "Use an overseer to watch approval friction, missed QA coverage, and unnecessary role contention as the team grows.",
+    bullets: [
+      "Architects should spawn engineering and QA capacity when design and system direction are stable.",
+      "Design leads should stay in the approval loop for any UI-heavy implementation lane.",
+    ],
+  });
+  addActivity(
+    "Workspace ready",
+    "Compose a team mode, run agents, measure workflow health, and let PMs, architects, or overseers expand the crew.",
+  );
+}
