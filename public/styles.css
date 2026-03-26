@@ -1,13 +1,16 @@
 :root {
-  --bg: #f3efe5;
-  --panel: rgba(250, 247, 240, 0.82);
-  --panel-strong: #fffaf0;
-  --ink: #18230f;
-  --muted: #59634d;
-  --line: rgba(24, 35, 15, 0.12);
-  --accent: #d95d39;
-  --accent-2: #3f6c51;
-  --shadow: 0 24px 60px rgba(55, 40, 18, 0.12);
+  --bg: #0b1220;
+  --bg-2: #0f1a30;
+  --panel: rgba(12, 18, 30, 0.82);
+  --panel-strong: rgba(17, 27, 46, 0.96);
+  --panel-soft: rgba(22, 36, 60, 0.7);
+  --ink: #e8f0ff;
+  --muted: #91a6cb;
+  --line: rgba(129, 165, 255, 0.14);
+  --accent: #69a8ff;
+  --accent-strong: #8dc2ff;
+  --accent-2: #3c78d8;
+  --shadow: 0 30px 90px rgba(0, 0, 0, 0.42);
 }
 
 * {
@@ -20,9 +23,10 @@ body {
   color: var(--ink);
   font-family: "Space Grotesk", sans-serif;
   background:
-    radial-gradient(circle at top left, rgba(217, 93, 57, 0.18), transparent 28%),
-    radial-gradient(circle at top right, rgba(63, 108, 81, 0.22), transparent 24%),
-    linear-gradient(180deg, #f6f1e7 0%, #ede4d0 100%);
+    radial-gradient(circle at top left, rgba(105, 168, 255, 0.24), transparent 24%),
+    radial-gradient(circle at top right, rgba(42, 87, 162, 0.3), transparent 28%),
+    radial-gradient(circle at bottom, rgba(18, 39, 74, 0.6), transparent 40%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
 }
 
 .page-shell {
@@ -32,24 +36,41 @@ body {
 }
 
 .hero {
-  padding: 24px 8px 28px;
+  padding: 12px 8px 28px;
+}
+
+.hero-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
 }
 
 .eyebrow {
-  margin: 0 0 12px;
+  margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.18em;
   font-size: 0.72rem;
-  color: var(--accent-2);
+  color: var(--accent-strong);
+}
+
+.hero-pill {
+  padding: 8px 12px;
+  border: 1px solid rgba(141, 194, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(16, 29, 50, 0.78);
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .hero h1 {
   margin: 0;
-  max-width: 10ch;
-  font-family: "Instrument Serif", serif;
-  font-size: clamp(3rem, 8vw, 6.5rem);
-  line-height: 0.92;
-  font-weight: 400;
+  max-width: 12ch;
+  font-size: clamp(2.8rem, 7vw, 5.4rem);
+  line-height: 0.96;
+  font-weight: 700;
+  letter-spacing: -0.04em;
 }
 
 .lede {
@@ -57,6 +78,7 @@ body {
   max-width: 42rem;
   color: var(--muted);
   font-size: 1.02rem;
+  line-height: 1.7;
 }
 
 .layout {
@@ -71,6 +93,16 @@ body {
   border-radius: 28px;
   box-shadow: var(--shadow);
   backdrop-filter: blur(14px);
+  position: relative;
+  overflow: hidden;
+}
+
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(141, 194, 255, 0.4), transparent);
 }
 
 .controls-panel {
@@ -115,20 +147,25 @@ input,
 select,
 textarea {
   width: 100%;
-  border: 1px solid rgba(24, 35, 15, 0.14);
+  border: 1px solid rgba(129, 165, 255, 0.14);
   border-radius: 16px;
-  background: rgba(255, 251, 243, 0.9);
+  background: rgba(10, 18, 30, 0.92);
   color: var(--ink);
   padding: 14px 16px;
   outline: none;
-  transition: border-color 180ms ease, transform 180ms ease, background 180ms ease;
+  transition:
+    border-color 180ms ease,
+    transform 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
 }
 
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: rgba(217, 93, 57, 0.75);
-  background: #fffdfa;
+  border-color: rgba(105, 168, 255, 0.78);
+  background: rgba(13, 24, 40, 0.98);
+  box-shadow: 0 0 0 4px rgba(60, 120, 216, 0.12);
   transform: translateY(-1px);
 }
 
@@ -157,6 +194,8 @@ textarea {
   grid-template-rows: 1fr auto;
   min-height: 72vh;
   overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(15, 24, 42, 0.95) 0%, rgba(8, 14, 24, 0.95) 100%);
 }
 
 .messages {
@@ -171,24 +210,25 @@ textarea {
   padding: 16px 18px;
   border-radius: 22px;
   animation: rise 220ms ease;
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.18);
 }
 
 .message.user {
   justify-self: end;
-  background: linear-gradient(135deg, rgba(217, 93, 57, 0.94), rgba(207, 116, 64, 0.9));
+  background: linear-gradient(135deg, rgba(72, 123, 255, 0.96), rgba(89, 170, 255, 0.88));
   color: white;
 }
 
 .message.assistant {
   justify-self: start;
   background: var(--panel-strong);
-  border: 1px solid rgba(24, 35, 15, 0.09);
+  border: 1px solid rgba(129, 165, 255, 0.1);
 }
 
 .message.system {
   justify-self: center;
-  background: rgba(63, 108, 81, 0.12);
-  color: var(--accent-2);
+  background: rgba(49, 86, 147, 0.2);
+  color: var(--accent-strong);
 }
 
 .message-meta {
@@ -207,7 +247,7 @@ textarea {
 .composer {
   padding: 18px 22px 22px;
   border-top: 1px solid var(--line);
-  background: rgba(255, 248, 237, 0.68);
+  background: rgba(9, 15, 27, 0.92);
 }
 
 .composer-row {
@@ -234,12 +274,13 @@ textarea {
 }
 
 .primary-button {
-  background: var(--ink);
-  color: white;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  color: #08111d;
+  font-weight: 700;
 }
 
 .ghost-button {
-  background: rgba(24, 35, 15, 0.06);
+  background: rgba(129, 165, 255, 0.08);
   color: var(--ink);
 }
 
@@ -293,5 +334,10 @@ textarea {
   .composer-row {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .hero-bar {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
