@@ -252,7 +252,9 @@ select {
 .activity-panel,
 .chat-panel,
 .metrics-panel,
-.insights-panel {
+.insights-panel,
+.workbook-panel,
+.terminal-panel {
   padding: 22px;
 }
 
@@ -379,6 +381,10 @@ select {
 .insights-list {
   display: grid;
   gap: 12px;
+}
+
+.repo-meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .palette-card,
@@ -597,6 +603,107 @@ button:disabled {
   gap: 12px;
   max-height: 360px;
   overflow-y: auto;
+}
+
+.workbook-shell {
+  margin-top: 18px;
+  overflow: auto;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(3, 8, 13, 0.48);
+}
+
+.workbook-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 860px;
+}
+
+.workbook-table th,
+.workbook-table td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  vertical-align: top;
+}
+
+.workbook-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(10, 19, 28, 0.98);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.74rem;
+  color: var(--gold);
+}
+
+.workbook-table td {
+  color: var(--silver);
+  line-height: 1.5;
+}
+
+.workbook-table tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.progress-pill {
+  display: inline-flex;
+  min-width: 68px;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(115, 199, 255, 0.12);
+  color: var(--blue);
+  font-size: 0.84rem;
+}
+
+.terminal-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.terminal-form {
+  margin: 0;
+}
+
+.terminal-output {
+  display: grid;
+  gap: 12px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.terminal-entry {
+  padding: 14px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.terminal-entry strong,
+.terminal-entry span {
+  display: block;
+}
+
+.terminal-entry span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.terminal-entry pre {
+  margin: 12px 0 0;
+  padding: 12px;
+  overflow: auto;
+  border-radius: 16px;
+  background: rgba(5, 11, 17, 0.92);
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.84rem;
+  line-height: 1.55;
 }
 
 .activity-feed {
@@ -824,7 +931,8 @@ body.panel-fullscreen-lock {
   .protocol-grid,
   .metrics-grid,
   .board-lanes,
-  .hero-summary {
+  .hero-summary,
+  .repo-meta {
     grid-template-columns: 1fr;
   }
 }
