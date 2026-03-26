@@ -35,7 +35,7 @@ npm run dev -- "Summarize why strong logging matters in backend services."
 Override the model at runtime:
 
 ```bash
-npm run dev -- --model gpt-4.1 "Draft a product launch email."
+npm run dev -- --model gpt-5.2 "Draft a product launch email."
 ```
 
 Run in interactive mode:
@@ -84,7 +84,7 @@ By default the agent talks to OpenAI using `OPENAI_API_KEY`. To switch models, c
 Examples:
 
 ```bash
-OPENAI_MODEL=gpt-4.1 npm run dev -- "Draft a release note."
+OPENAI_MODEL=gpt-5.2 npm run dev -- "Draft a release note."
 OPENAI_MODEL=gpt-4.1-mini npm run dev -- "Summarize this document."
 ```
 
@@ -99,7 +99,7 @@ npm run dev -- --base-url http://localhost:11434/v1 --model llama3.2
 
 The browser UI exposes the same runtime overrides when a new session starts:
 
-- `Model` from a picker, with a custom-model option for compatible endpoints
+- `Model` from a picker covering the current GPT-5.x, GPT-4.1, GPT-4o, and `chatgpt-4o-latest` options, plus a custom-model override for compatible endpoints
 - `Temperature`
 - `Base URL`
 - `System Prompt`
