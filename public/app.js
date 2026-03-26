@@ -1,4 +1,8 @@
-import { findRoleConfig, sanitizeRestoredAgent } from "./app-state.js";
+import {
+  findRoleConfig,
+  handleTeamModeSelectionChange,
+  sanitizeRestoredAgent,
+} from "./app-state.js";
 
 const palette = document.querySelector("#palette");
 const briefInput = document.querySelector("#brief-input");
@@ -1367,7 +1371,9 @@ agentCustomModelInput.addEventListener("input", () => {
   render();
 });
 
-teamModeSelect.addEventListener("change", renderTeamModeDescription);
+teamModeSelect.addEventListener("change", () => {
+  handleTeamModeSelectionChange(renderTeamModeDescription, persistWorkspace);
+});
 composeTeamButton.addEventListener("click", () => composeTeamMode(teamModeSelect.value));
 seedButton.addEventListener("click", seedStarterTeam);
 runSelectedButton.addEventListener("click", runSelectedAgent);

@@ -15,3 +15,8 @@ export function sanitizeRestoredAgent(agent, sanitizeMetrics) {
     sessionId: null,
   };
 }
+
+export function handleTeamModeSelectionChange(renderTeamModeDescription, persistWorkspace) {
+  renderTeamModeDescription();
+  persistWorkspace();
+}
