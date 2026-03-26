@@ -336,7 +336,6 @@ function restoreWorkspace() {
     return false;
   }
 }
-
 function getSelectedAgent() {
   return state.agents.find((agent) => agent.id === state.selectedAgentId) ?? null;
 }
@@ -415,7 +414,6 @@ function createAgent(roleId, options = {}) {
     );
     return null;
   }
-
   const role = getRoleConfig(roleId);
   const numberForRole =
     state.agents.filter((agent) => agent.roleId === roleId).length + 1;
@@ -473,7 +471,6 @@ function createAgentsWithLimit(roleIds, describeSource) {
 
   return nextRoles.length;
 }
-
 function assignDefaultReviewers() {
   const byRole = (roleId) => state.agents.filter((agent) => agent.roleId === roleId);
 
