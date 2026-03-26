@@ -105,6 +105,7 @@ The browser UI exposes the same runtime overrides when a new session starts:
 - `System Prompt`
 
 Once a session is active, the conversation keeps its own memory until you reset it.
+Each agent also tracks cumulative and last-call token usage in the board and inspector views when the provider returns usage data.
 
 ## Web UI
 

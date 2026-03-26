@@ -2,16 +2,27 @@ import { describe, expect, it, vi } from "vitest";
 
 import { Agent } from "../src/agent.js";
 import type { AgentConfig } from "../src/config.js";
-import type { AgentMessage, ModelProvider } from "../src/providers/base.js";
+import type {
+  AgentMessage,
+  ModelProvider,
+  ModelResponse,
+} from "../src/providers/base.js";
 
 class FakeProvider implements ModelProvider {
   public readonly calls: AgentMessage[][] = [];
 
   constructor(private readonly response: string) {}
 
-  async respond(messages: AgentMessage[]): Promise<string> {
+  async respond(messages: AgentMessage[]): Promise<ModelResponse> {
     this.calls.push([...messages]);
-    return this.response;
+    return {
+      content: this.response,
+      usage: {
+        inputTokens: 11,
+        outputTokens: 7,
+        totalTokens: 18,
+      },
+    };
   }
 }
 
@@ -36,6 +47,20 @@ describe("Agent", () => {
       { role: "system", content: "Be precise." },
       { role: "user", content: "hello" },
     ]);
+  });
+
+  it("returns the provider content and usage", async () => {
+    const provider = new FakeProvider("first answer");
+    const agent = new Agent(createConfig(), provider);
+
+    await expect(agent.run("hello")).resolves.toEqual({
+      content: "first answer",
+      usage: {
+        inputTokens: 11,
+        outputTokens: 7,
+        totalTokens: 18,
+      },
+    });
   });
 
   it("preserves conversation history across turns", async () => {

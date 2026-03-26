@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 
 import type { AgentConfig } from "../config.js";
-import type { AgentMessage, ModelProvider } from "./base.js";
+import type { AgentMessage, ModelProvider, ModelResponse } from "./base.js";
 
 export class OpenAIProvider implements ModelProvider {
   private readonly client: OpenAI;
@@ -17,13 +17,20 @@ export class OpenAIProvider implements ModelProvider {
     this.temperature = config.temperature;
   }
 
-  async respond(messages: AgentMessage[]): Promise<string> {
+  async respond(messages: AgentMessage[]): Promise<ModelResponse> {
     const completion = await this.client.chat.completions.create({
       model: this.model,
       messages,
       temperature: this.temperature,
     });
 
-    return completion.choices[0]?.message?.content?.trim() ?? "";
+    return {
+      content: completion.choices[0]?.message?.content?.trim() ?? "",
+      usage: {
+        inputTokens: completion.usage?.prompt_tokens ?? 0,
+        outputTokens: completion.usage?.completion_tokens ?? 0,
+        totalTokens: completion.usage?.total_tokens ?? 0,
+      },
+    };
   }
 }
