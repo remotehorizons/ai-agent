@@ -1,4 +1,4 @@
-import { findRoleConfig } from "./app-state.js";
+import { findRoleConfig, sanitizeRestoredAgent } from "./app-state.js";
 
 const palette = document.querySelector("#palette");
 const briefInput = document.querySelector("#brief-input");
@@ -287,15 +287,7 @@ function restoreWorkspace() {
       .filter((agent) => agent && typeof agent === "object" && typeof agent.id === "string")
       .map((agent) => {
         agentIds.add(agent.id);
-        return {
-          ...agent,
-          reviewers: Array.isArray(agent.reviewers)
-            ? agent.reviewers.filter((reviewerId) => typeof reviewerId === "string")
-            : [],
-          approvals:
-            agent.approvals && typeof agent.approvals === "object" ? agent.approvals : {},
-          metrics: sanitizeMetrics(agent.metrics),
-        };
+        return sanitizeRestoredAgent(agent, sanitizeMetrics);
       });
 
     state.selectedAgentId =
