@@ -1,5 +1,6 @@
 const palette = document.querySelector("#palette");
 const briefInput = document.querySelector("#brief-input");
+const maxAgentsInput = document.querySelector("#maxAgents");
 const modelSelect = document.querySelector("#modelSelect");
 const customModelGroup = document.querySelector("#customModelGroup");
 const customModelInput = document.querySelector("#customModel");
@@ -165,6 +166,9 @@ const state = {
   insights: [],
 };
 
+const workspaceStorageKey = "ai-agent-workspace/v1";
+const defaultMaxAgents = 50;
+
 function uid(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -181,6 +185,157 @@ function defaultMetrics() {
   };
 }
 
+function parseMaxAgents(value) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return defaultMaxAgents;
+  }
+
+  return parsed;
+}
+
+function getMaxAgents() {
+  return parseMaxAgents(maxAgentsInput.value);
+}
+
+function syncMaxAgentsInput() {
+  maxAgentsInput.value = String(getMaxAgents());
+}
+
+function canUseLocalStorage() {
+  try {
+    return typeof window !== "undefined" && Boolean(window.localStorage);
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeMetrics(metrics) {
+  const defaults = defaultMetrics();
+  if (!metrics || typeof metrics !== "object") {
+    return defaults;
+  }
+
+  return {
+    runs: Number(metrics.runs) || 0,
+    reviewsRequested: Number(metrics.reviewsRequested) || 0,
+    reviewsCompleted: Number(metrics.reviewsCompleted) || 0,
+    approvalsGranted: Number(metrics.approvalsGranted) || 0,
+    changesRequested: Number(metrics.changesRequested) || 0,
+    directMessages: Number(metrics.directMessages) || 0,
+    spawnedAgents: Number(metrics.spawnedAgents) || 0,
+  };
+}
+
+function serializeWorkspace() {
+  return {
+    selectedAgentId: state.selectedAgentId,
+    agents: state.agents,
+    activity: state.activity,
+    logsByAgent: Object.fromEntries(state.logsByAgent),
+    insights: state.insights,
+    controls: {
+      brief: briefInput.value,
+      maxAgents: maxAgentsInput.value,
+      model: modelSelect.value,
+      customModel: customModelInput.value,
+      temperature: temperatureInput.value,
+      baseUrl: baseUrlInput.value,
+      systemPrompt: systemPromptInput.value,
+      teamMode: teamModeSelect.value,
+    },
+  };
+}
+
+function persistWorkspace() {
+  if (!canUseLocalStorage()) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      workspaceStorageKey,
+      JSON.stringify(serializeWorkspace()),
+    );
+  } catch {
+    // Ignore persistence failures so the app remains usable.
+  }
+}
+
+function restoreWorkspace() {
+  if (!canUseLocalStorage()) {
+    return false;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(workspaceStorageKey);
+    if (!raw) {
+      return false;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return false;
+    }
+
+    const savedAgents = Array.isArray(parsed.agents) ? parsed.agents : [];
+    const agentIds = new Set();
+
+    state.agents = savedAgents
+      .filter((agent) => agent && typeof agent === "object" && typeof agent.id === "string")
+      .map((agent) => {
+        agentIds.add(agent.id);
+        return {
+          ...agent,
+          reviewers: Array.isArray(agent.reviewers)
+            ? agent.reviewers.filter((reviewerId) => typeof reviewerId === "string")
+            : [],
+          approvals:
+            agent.approvals && typeof agent.approvals === "object" ? agent.approvals : {},
+          metrics: sanitizeMetrics(agent.metrics),
+        };
+      });
+
+    state.selectedAgentId =
+      typeof parsed.selectedAgentId === "string" && agentIds.has(parsed.selectedAgentId)
+        ? parsed.selectedAgentId
+        : state.agents[0]?.id ?? null;
+    state.activity = Array.isArray(parsed.activity) ? parsed.activity : [];
+    state.insights = Array.isArray(parsed.insights) ? parsed.insights : [];
+    state.logsByAgent = new Map(
+      Object.entries(parsed.logsByAgent ?? {}).map(([agentId, entries]) => [
+        agentId,
+        Array.isArray(entries) ? entries : [],
+      ]),
+    );
+
+    for (const agent of state.agents) {
+      if (!state.logsByAgent.has(agent.id)) {
+        state.logsByAgent.set(agent.id, []);
+      }
+    }
+
+    const controls =
+      parsed.controls && typeof parsed.controls === "object" ? parsed.controls : {};
+    briefInput.value = typeof controls.brief === "string" ? controls.brief : "";
+    maxAgentsInput.value =
+      typeof controls.maxAgents === "string" ? controls.maxAgents : String(defaultMaxAgents);
+    modelSelect.value = typeof controls.model === "string" ? controls.model : modelSelect.value;
+    customModelInput.value =
+      typeof controls.customModel === "string" ? controls.customModel : "";
+    temperatureInput.value =
+      typeof controls.temperature === "string" ? controls.temperature : "";
+    baseUrlInput.value = typeof controls.baseUrl === "string" ? controls.baseUrl : "";
+    systemPromptInput.value =
+      typeof controls.systemPrompt === "string" ? controls.systemPrompt : "";
+    teamModeSelect.value =
+      typeof controls.teamMode === "string" ? controls.teamMode : teamModeSelect.value;
+
+    return true;
+  } catch {
+    return false;
+  }
+}
 function getSelectedAgent() {
   return state.agents.find((agent) => agent.id === state.selectedAgentId) ?? null;
 }
@@ -243,7 +398,22 @@ function invalidateInheritedAgentSessions() {
   render();
 }
 
+function invalidateAllAgentSessions() {
+  for (const agent of state.agents) {
+    agent.sessionId = null;
+  }
+
+  render();
+}
+
 function createAgent(roleId, options = {}) {
+  if (state.agents.length >= getMaxAgents()) {
+    addActivity(
+      "Agent limit reached",
+      `The workspace is capped at ${getMaxAgents()} agents. Raise Max Agents to add more.`,
+    );
+    return null;
+  }
   const role = getRoleConfig(roleId);
   const numberForRole =
     state.agents.filter((agent) => agent.roleId === roleId).length + 1;
@@ -282,6 +452,25 @@ function createAgent(roleId, options = {}) {
   return agent;
 }
 
+function createAgentsWithLimit(roleIds, describeSource) {
+  const availableSlots = Math.max(getMaxAgents() - state.agents.length, 0);
+  const nextRoles = roleIds.slice(0, availableSlots);
+
+  for (const roleId of nextRoles) {
+    createAgent(roleId, {
+      activity: `${getRoleConfig(roleId).label} added from ${describeSource}.`,
+    });
+  }
+
+  if (nextRoles.length < roleIds.length) {
+    addActivity(
+      "Agent limit reached",
+      `Only ${nextRoles.length} of ${roleIds.length} requested agents were added because the workspace cap is ${getMaxAgents()}.`,
+    );
+  }
+
+  return nextRoles.length;
+}
 function assignDefaultReviewers() {
   const byRole = (roleId) => state.agents.filter((agent) => agent.roleId === roleId);
 
@@ -344,9 +533,10 @@ function seedStarterTeam() {
     return;
   }
 
-  for (const roleId of ["pm", "architect", "engineer", "designer", "reviewer", "overseer"]) {
-    createAgent(roleId, { activity: `${getRoleConfig(roleId).label} added to starter team.` });
-  }
+  createAgentsWithLimit(
+    ["pm", "architect", "engineer", "designer", "reviewer", "overseer"],
+    "starter team",
+  );
 
   assignDefaultReviewers();
   const engineer = state.agents.find((agent) => agent.roleId === "engineer");
@@ -359,11 +549,7 @@ function seedStarterTeam() {
 
 function composeTeamMode(modeId) {
   const mode = getTeamModeConfig(modeId);
-  for (const roleId of mode.roles) {
-    createAgent(roleId, {
-      activity: `${getRoleConfig(roleId).label} added from ${mode.label}.`,
-    });
-  }
+  createAgentsWithLimit(mode.roles, mode.label);
   assignDefaultReviewers();
   const overseer = state.agents.find((agent) => agent.roleId === "overseer");
   if (overseer) {
@@ -394,8 +580,9 @@ function renderPalette() {
       <em>${role.canSpawn ? "Leads can expand through this role" : "Create agent"}</em>
     `;
     button.addEventListener("click", () => {
-      createAgent(role.id);
-      assignDefaultReviewers();
+      if (createAgent(role.id)) {
+        assignDefaultReviewers();
+      }
       render();
     });
     palette.appendChild(button);
@@ -735,6 +922,7 @@ function render() {
   renderBoard();
   renderDetails();
   renderInsights();
+  persistWorkspace();
 }
 
 function setPending(isPending) {
@@ -1078,11 +1266,14 @@ async function spawnHelpersForSelected() {
         : `${agent.name} recommended expanding the team to reduce delivery risk.`;
 
     for (const suggestion of plan) {
-      createAgent(suggestion.roleId, {
+      const created = createAgent(suggestion.roleId, {
         mission: suggestion.mission,
         spawnedBy: agent.id,
         activity: `${getRoleConfig(suggestion.roleId).label} spawned by ${agent.name}.`,
       });
+      if (!created) {
+        break;
+      }
     }
 
     assignDefaultReviewers();
@@ -1212,28 +1403,41 @@ deleteAgentButton.addEventListener("click", () => {
 clearActivityButton.addEventListener("click", () => {
   state.activity = [];
   renderActivity();
+  persistWorkspace();
 });
 
 modelSelect.addEventListener("change", syncModelFields);
 modelSelect.addEventListener("change", invalidateInheritedAgentSessions);
 customModelInput.addEventListener("input", invalidateInheritedAgentSessions);
+maxAgentsInput.addEventListener("input", () => {
+  syncMaxAgentsInput();
+  persistWorkspace();
+});
+temperatureInput.addEventListener("input", invalidateAllAgentSessions);
+baseUrlInput.addEventListener("input", invalidateAllAgentSessions);
+systemPromptInput.addEventListener("input", invalidateAllAgentSessions);
 
 renderPalette();
+const restoredWorkspace = restoreWorkspace();
 syncModelFields();
 syncAgentModelFields();
+syncMaxAgentsInput();
 renderTeamModeDescription();
 renderActivity();
 renderInsights();
 render();
-addInsight({
-  title: "Overseer baseline",
-  body: "Use an overseer to watch approval friction, missed QA coverage, and unnecessary role contention as the team grows.",
-  bullets: [
-    "Architects should spawn engineering and QA capacity when design and system direction are stable.",
-    "Design leads should stay in the approval loop for any UI-heavy implementation lane.",
-  ],
-});
-addActivity(
-  "Workspace ready",
-  "Compose a team mode, run agents, measure workflow health, and let PMs, architects, or overseers expand the crew.",
-);
+
+if (!restoredWorkspace) {
+  addInsight({
+    title: "Overseer baseline",
+    body: "Use an overseer to watch approval friction, missed QA coverage, and unnecessary role contention as the team grows.",
+    bullets: [
+      "Architects should spawn engineering and QA capacity when design and system direction are stable.",
+      "Design leads should stay in the approval loop for any UI-heavy implementation lane.",
+    ],
+  });
+  addActivity(
+    "Workspace ready",
+    "Compose a team mode, run agents, measure workflow health, and let PMs, architects, or overseers expand the crew.",
+  );
+}
