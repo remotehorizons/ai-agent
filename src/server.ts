@@ -49,11 +49,12 @@ app.post("/api/chat", async (request, response) => {
 
   try {
     const { id, agent } = sessions.ensure(body.sessionId, pickOverrides(body));
-    const reply = await agent.run(message);
+    const result = await agent.run(message);
 
     response.json({
       sessionId: id,
-      reply,
+      reply: result.content,
+      usage: result.usage,
     });
   } catch (error: unknown) {
     const messageText =

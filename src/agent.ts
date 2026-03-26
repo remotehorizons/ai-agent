@@ -1,5 +1,5 @@
 import type { AgentConfig } from "./config.js";
-import type { AgentMessage, ModelProvider } from "./providers/base.js";
+import type { AgentMessage, ModelProvider, ModelResponse } from "./providers/base.js";
 import { OpenAIProvider } from "./providers/openai.js";
 
 export class Agent {
@@ -11,10 +11,10 @@ export class Agent {
     this.history = [{ role: "system", content: config.systemPrompt }];
   }
 
-  async run(input: string): Promise<string> {
+  async run(input: string): Promise<ModelResponse> {
     this.history.push({ role: "user", content: input });
     const response = await this.provider.respond(this.history);
-    this.history.push({ role: "assistant", content: response });
+    this.history.push({ role: "assistant", content: response.content });
 
     return response;
   }

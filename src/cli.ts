@@ -78,7 +78,7 @@ async function runInteractive(agent: Agent): Promise<void> {
       }
 
       const response = await agent.run(prompt);
-      console.log(`\n${response}\n`);
+      console.log(`\n${response.content}\n`);
     }
   } finally {
     rl.close();
@@ -97,7 +97,7 @@ async function main(): Promise<void> {
 
   if (options.prompt) {
     const response = await agent.run(options.prompt);
-    console.log(response);
+    console.log(response.content);
     return;
   }
 
