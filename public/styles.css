@@ -110,6 +110,7 @@ select {
   padding: 8px 2px 24px;
 }
 
+.brand-lockup,
 .hero-topline,
 .section-heading,
 .hero-grid,
@@ -128,6 +129,12 @@ select {
 
 .hero-topline {
   margin-bottom: 22px;
+}
+
+.brand-lockup {
+  margin-bottom: 20px;
+  justify-content: start;
+  gap: 18px;
 }
 
 .eyebrow,
@@ -152,6 +159,42 @@ select {
   background: rgba(12, 21, 31, 0.8);
 }
 
+.brand-mark {
+  width: 88px;
+  height: 88px;
+  border-radius: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.12), transparent 40%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.28);
+}
+
+.brand-name-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.brand-name {
+  font-family: "Instrument Serif", serif;
+  font-size: clamp(1.4rem, 3vw, 2.1rem);
+  letter-spacing: -0.04em;
+}
+
+.brand-pill {
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(115, 199, 255, 0.1);
+  border: 1px solid rgba(115, 199, 255, 0.2);
+  color: var(--blue);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
 .hero-grid {
   align-items: end;
 }
@@ -172,6 +215,17 @@ select {
   color: var(--muted);
   line-height: 1.8;
   font-size: 1.02rem;
+}
+
+.mascot-note {
+  margin: 18px 0 0;
+  max-width: 38rem;
+  padding: 14px 16px;
+  border-radius: 20px;
+  color: var(--silver);
+  line-height: 1.7;
+  background: linear-gradient(135deg, rgba(115, 199, 255, 0.08), rgba(255, 186, 73, 0.08));
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .panel {
@@ -780,6 +834,7 @@ body.panel-fullscreen-lock {
     width: min(100%, calc(100% - 20px));
   }
 
+  .brand-lockup,
   .hero-topline,
   .section-heading,
   .composer-row,
