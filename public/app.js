@@ -377,6 +377,14 @@ function invalidateInheritedAgentSessions() {
   render();
 }
 
+function invalidateAllAgentSessions() {
+  for (const agent of state.agents) {
+    agent.sessionId = null;
+  }
+
+  render();
+}
+
 function createAgent(roleId, options = {}) {
   const role = getRoleConfig(roleId);
   const numberForRole =
@@ -1353,6 +1361,9 @@ clearActivityButton.addEventListener("click", () => {
 modelSelect.addEventListener("change", syncModelFields);
 modelSelect.addEventListener("change", invalidateInheritedAgentSessions);
 customModelInput.addEventListener("input", invalidateInheritedAgentSessions);
+temperatureInput.addEventListener("input", invalidateAllAgentSessions);
+baseUrlInput.addEventListener("input", invalidateAllAgentSessions);
+systemPromptInput.addEventListener("input", invalidateAllAgentSessions);
 
 renderPalette();
 const restoredWorkspace = restoreWorkspace();
