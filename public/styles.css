@@ -12,6 +12,7 @@
   --silver: #d9e3eb;
   --danger: #ff7f7f;
   --shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
+  --detail-column-width: 380px;
 }
 
 * {
@@ -236,7 +237,7 @@ select {
 
 .workspace {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr) 380px;
+  grid-template-columns: 320px minmax(0, 1fr) 12px var(--detail-column-width);
   gap: 18px;
   align-items: start;
 }
@@ -246,6 +247,37 @@ select {
 .detail-column {
   display: grid;
   gap: 18px;
+}
+
+.detail-column {
+  min-width: 0;
+}
+
+.detail-resizer {
+  position: relative;
+  align-self: stretch;
+  min-height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.detail-resizer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: 6px auto;
+  width: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  transition:
+    background 180ms ease,
+    transform 180ms ease;
+}
+
+.detail-resizer:hover::before,
+.detail-resizer.is-dragging::before {
+  background: rgba(255, 186, 73, 0.55);
+  transform: scaleX(1.2);
 }
 
 .field {
@@ -339,6 +371,12 @@ select {
   gap: 10px;
 }
 
+.panel-header-actions {
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: end;
+}
+
 .inspector-actions {
   flex-wrap: wrap;
   justify-content: end;
@@ -365,6 +403,10 @@ select {
 .ghost-button {
   background: rgba(255, 255, 255, 0.04);
   color: var(--ink);
+}
+
+.panel-action-button {
+  white-space: nowrap;
 }
 
 .ghost-button.danger {
@@ -567,6 +609,34 @@ button:disabled {
   min-height: 520px;
 }
 
+.panel.is-expanded {
+  min-height: 72vh;
+}
+
+body.panel-fullscreen-lock {
+  overflow: hidden;
+}
+
+.panel.is-fullscreen {
+  position: fixed;
+  inset: 20px;
+  z-index: 30;
+  min-height: calc(100vh - 40px);
+  max-height: calc(100vh - 40px);
+}
+
+.panel.is-fullscreen .messages,
+.panel.is-expanded .messages {
+  max-height: none;
+}
+
+.panel.is-fullscreen .composer textarea,
+.panel.is-expanded .composer textarea,
+.panel.is-fullscreen #agent-output,
+.panel.is-expanded #agent-output {
+  min-height: 220px;
+}
+
 .messages {
   margin: 18px 0;
 }
@@ -664,6 +734,10 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .detail-resizer {
+    display: none;
+  }
+
   .hero-grid {
     display: grid;
     gap: 16px;
@@ -690,7 +764,8 @@ button:disabled {
   .hero-topline,
   .section-heading,
   .composer-row,
-  .detail-meta {
+  .detail-meta,
+  .panel-header-actions {
     align-items: start;
     flex-direction: column;
   }
