@@ -33,7 +33,22 @@
           <form id="settings-form" class="settings-form">
             <label>
               <span>Model</span>
-              <input id="model" name="model" placeholder="gpt-4.1-mini" />
+              <select id="modelSelect" name="modelSelect">
+                <option value="gpt-4.1-mini" selected>GPT-4.1 Mini</option>
+                <option value="gpt-4.1">GPT-4.1</option>
+                <option value="gpt-4o-mini">GPT-4o Mini</option>
+                <option value="gpt-4o">GPT-4o</option>
+                <option value="custom">Custom model</option>
+              </select>
+            </label>
+
+            <label id="customModelGroup" class="hidden-field">
+              <span>Custom Model Name</span>
+              <input
+                id="customModel"
+                name="customModel"
+                placeholder="llama3.2 or another OpenAI-compatible model"
+              />
             </label>
 
             <label>

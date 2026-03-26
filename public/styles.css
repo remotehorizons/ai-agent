@@ -105,12 +105,14 @@ body {
 }
 
 input,
+select,
 textarea,
 button {
   font: inherit;
 }
 
 input,
+select,
 textarea {
   width: 100%;
   border: 1px solid rgba(24, 35, 15, 0.14);
@@ -123,6 +125,7 @@ textarea {
 }
 
 input:focus,
+select:focus,
 textarea:focus {
   border-color: rgba(217, 93, 57, 0.75);
   background: #fffdfa;
@@ -131,6 +134,10 @@ textarea:focus {
 
 textarea {
   resize: vertical;
+}
+
+.hidden-field {
+  display: none;
 }
 
 .session-actions {
