@@ -290,9 +290,14 @@ select {
   color: var(--muted);
 }
 
-.settings-grid {
+.settings-grid,
+.protocol-grid {
   display: grid;
   gap: 12px;
+}
+
+.protocol-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .support-copy,
@@ -369,6 +374,19 @@ select {
 .inline-actions {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
+  justify-content: end;
+}
+
+.panel-header-actions {
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: end;
+}
+
+.inspector-actions {
+  flex-wrap: wrap;
+  justify-content: end;
 }
 
 .panel-header-actions {
@@ -749,6 +767,7 @@ body.panel-fullscreen-lock {
 }
 
 @media (max-width: 920px) {
+  .protocol-grid,
   .metrics-grid,
   .board-lanes,
   .hero-summary {

@@ -13,6 +13,10 @@ const seedButton = document.querySelector("#seed-button");
 const teamModeSelect = document.querySelector("#team-mode-select");
 const composeTeamButton = document.querySelector("#compose-team-button");
 const teamModeDescription = document.querySelector("#team-mode-description");
+const consensusThresholdInput = document.querySelector("#consensus-threshold");
+const revisionBudgetInput = document.querySelector("#revision-budget");
+const escalationModeSelect = document.querySelector("#escalation-mode");
+const runWorkspaceButton = document.querySelector("#run-workspace-button");
 const runSelectedButton = document.querySelector("#run-selected-button");
 const reviewSelectedButton = document.querySelector("#review-selected-button");
 const spawnHelperButton = document.querySelector("#spawn-helper-button");
@@ -54,8 +58,6 @@ const agentStatus = document.querySelector("#agent-status");
 const agentApprovalSummary = document.querySelector("#agent-approval-summary");
 const agentRunCount = document.querySelector("#agent-run-count");
 const agentSpawnCount = document.querySelector("#agent-spawn-count");
-const agentTotalTokens = document.querySelector("#agent-total-tokens");
-const agentLastTokenUsage = document.querySelector("#agent-last-token-usage");
 const agentOutput = document.querySelector("#agent-output");
 const reviewerList = document.querySelector("#reviewer-list");
 const sessionStatus = document.querySelector("#session-status");
@@ -263,12 +265,6 @@ function defaultMetrics() {
     changesRequested: 0,
     directMessages: 0,
     spawnedAgents: 0,
-    inputTokens: 0,
-    outputTokens: 0,
-    totalTokens: 0,
-    lastInputTokens: 0,
-    lastOutputTokens: 0,
-    lastTotalTokens: 0,
   };
 }
 
@@ -287,6 +283,30 @@ function getMaxAgents() {
 
 function syncMaxAgentsInput() {
   maxAgentsInput.value = String(getMaxAgents());
+}
+
+function parsePositiveInteger(value, fallback, minimum = 1) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed) || parsed < minimum) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
+function getMissionProtocol() {
+  return {
+    consensusThreshold: parsePositiveInteger(consensusThresholdInput.value, 2),
+    revisionBudget: parsePositiveInteger(revisionBudgetInput.value, 2, 0),
+    escalationMode: escalationModeSelect.value || "overseer",
+  };
+}
+
+function syncMissionProtocolInputs() {
+  const protocol = getMissionProtocol();
+  consensusThresholdInput.value = String(protocol.consensusThreshold);
+  revisionBudgetInput.value = String(protocol.revisionBudget);
+  escalationModeSelect.value = protocol.escalationMode;
 }
 
 function canUseLocalStorage() {
@@ -311,17 +331,7 @@ function sanitizeMetrics(metrics) {
     changesRequested: Number(metrics.changesRequested) || 0,
     directMessages: Number(metrics.directMessages) || 0,
     spawnedAgents: Number(metrics.spawnedAgents) || 0,
-    inputTokens: Number(metrics.inputTokens) || 0,
-    outputTokens: Number(metrics.outputTokens) || 0,
-    totalTokens: Number(metrics.totalTokens) || 0,
-    lastInputTokens: Number(metrics.lastInputTokens) || 0,
-    lastOutputTokens: Number(metrics.lastOutputTokens) || 0,
-    lastTotalTokens: Number(metrics.lastTotalTokens) || 0,
   };
-}
-
-function formatTokenCount(value) {
-  return new Intl.NumberFormat().format(Number(value) || 0);
 }
 
 function serializeWorkspace() {
@@ -335,6 +345,9 @@ function serializeWorkspace() {
     controls: {
       brief: briefInput.value,
       maxAgents: maxAgentsInput.value,
+      consensusThreshold: consensusThresholdInput.value,
+      revisionBudget: revisionBudgetInput.value,
+      escalationMode: escalationModeSelect.value,
       model: modelSelect.value,
       customModel: customModelInput.value,
       temperature: temperatureInput.value,
@@ -546,6 +559,12 @@ function restoreWorkspace() {
     briefInput.value = typeof controls.brief === "string" ? controls.brief : "";
     maxAgentsInput.value =
       typeof controls.maxAgents === "string" ? controls.maxAgents : String(defaultMaxAgents);
+    consensusThresholdInput.value =
+      typeof controls.consensusThreshold === "string" ? controls.consensusThreshold : "2";
+    revisionBudgetInput.value =
+      typeof controls.revisionBudget === "string" ? controls.revisionBudget : "2";
+    escalationModeSelect.value =
+      typeof controls.escalationMode === "string" ? controls.escalationMode : "overseer";
     modelSelect.value =
       typeof controls.model === "string"
         ? normalizeWorkspaceModelValue(controls.model)
@@ -565,6 +584,7 @@ function restoreWorkspace() {
     return false;
   }
 }
+
 function getSelectedAgent() {
   return state.agents.find((agent) => agent.id === state.selectedAgentId) ?? null;
 }
@@ -643,6 +663,7 @@ function createAgent(roleId, options = {}) {
     );
     return null;
   }
+
   const role = getRoleConfig(roleId);
   const numberForRole =
     state.agents.filter((agent) => agent.roleId === roleId).length + 1;
@@ -700,6 +721,7 @@ function createAgentsWithLimit(roleIds, describeSource) {
 
   return nextRoles.length;
 }
+
 function assignDefaultReviewers() {
   const byRole = (roleId) => state.agents.filter((agent) => agent.roleId === roleId);
 
@@ -833,10 +855,10 @@ function getApprovalStats(agent) {
 
 function humanizeStatus(status) {
   const labels = {
-    drafting: "Drafting",
-    review: "In review",
-    approved: "Approved",
-    blocked: "Changes requested",
+    drafting: "Executing",
+    review: "Seeking consensus",
+    approved: "Completed",
+    blocked: "Needs revision",
   };
 
   return labels[status] ?? status;
@@ -850,7 +872,7 @@ function createAgentCard(agent) {
     card.classList.add("selected");
   }
 
-  const approvals = getApprovalStats(agent);
+  const approvals = getConsensusOutcome(agent);
   const effectiveModel = getEffectiveAgentModel(agent) || "workspace default";
 
   card.innerHTML = `
@@ -861,12 +883,8 @@ function createAgentCard(agent) {
     <strong>${agent.name}</strong>
     <p>${agent.mission}</p>
     <div class="agent-card-footer">
-      <span>${approvals.approved}/${approvals.total || 0} approvals</span>
-      <span>${formatTokenCount(agent.metrics.totalTokens)} tokens</span>
-    </div>
-    <div class="agent-card-footer">
+      <span>${approvals.threshold ? `${approvals.approved}/${approvals.threshold} consensus` : "auto-complete"}</span>
       <span>${effectiveModel}</span>
-      <span>Last ${formatTokenCount(agent.metrics.lastTotalTokens)}</span>
     </div>
   `;
 
@@ -974,7 +992,7 @@ function renderReviewers(agent) {
   const otherAgents = state.agents.filter((entry) => entry.id !== agent.id);
 
   if (!otherAgents.length) {
-    reviewerList.textContent = "Create additional agents to build an approval chain.";
+    reviewerList.textContent = "Create additional agents to build the command chain.";
     return;
   }
 
@@ -1035,12 +1053,12 @@ function renderDetails() {
   agentCustomModelInput.value = agent.customModel;
   syncAgentModelFields();
   agentStatus.textContent = humanizeStatus(agent.status);
-  const approvals = getApprovalStats(agent);
-  agentApprovalSummary.textContent = `${approvals.approved} / ${approvals.total}`;
+  const approvals = getConsensusOutcome(agent);
+  agentApprovalSummary.textContent = approvals.threshold
+    ? `${approvals.approved} / ${approvals.threshold}`
+    : "Auto";
   agentRunCount.textContent = String(agent.metrics.runs);
   agentSpawnCount.textContent = String(agent.metrics.spawnedAgents);
-  agentTotalTokens.textContent = formatTokenCount(agent.metrics.totalTokens);
-  agentLastTokenUsage.textContent = formatTokenCount(agent.metrics.lastTotalTokens);
   agentOutput.value = agent.lastOutput;
   sessionStatus.textContent = agent.sessionId
     ? `Session ${agent.sessionId.slice(0, 8)}...`
@@ -1164,6 +1182,7 @@ function render() {
 function setPending(isPending) {
   state.pending = isPending;
   sendButton.disabled = isPending;
+  runWorkspaceButton.disabled = isPending;
   runSelectedButton.disabled = isPending;
   reviewSelectedButton.disabled = isPending;
   composeTeamButton.disabled = isPending;
@@ -1195,6 +1214,7 @@ async function postJson(url, body) {
 
 function buildAgentSystemPrompt(agent) {
   const globalPolicy = systemPromptInput.value.trim();
+  const protocol = getMissionProtocol();
   const reviewerNames = agent.reviewers
     .map((reviewerId) => state.agents.find((entry) => entry.id === reviewerId)?.name)
     .filter(Boolean)
@@ -1213,6 +1233,8 @@ function buildAgentSystemPrompt(agent) {
     agent.prompt,
     `Your role name is ${agent.name}.`,
     `Your mission: ${agent.mission}`,
+    `Operate autonomously. Seek forward progress, make explicit decisions, and resolve ambiguity instead of waiting for human confirmation.`,
+    `Mission protocol: reach at least ${protocol.consensusThreshold} supporting reviews when reviewers exist, keep revisions within ${protocol.revisionBudget} loops, and escalate according to ${protocol.escalationMode}.`,
     getEffectiveAgentModel(agent)
       ? `Use the model routing preference: ${getEffectiveAgentModel(agent)}.`
       : "",
@@ -1280,50 +1302,252 @@ function updateAgentStatusFromApprovals(agent) {
   agent.status = "review";
 }
 
-async function runSelectedAgent() {
-  const agent = getSelectedAgent();
-  if (!agent) {
-    addActivity("No agent selected", "Choose an agent before running a task.");
+function getConsensusThresholdForAgent(agent) {
+  const { total } = getApprovalStats(agent);
+  if (!total) {
+    return 0;
+  }
+
+  return Math.min(getMissionProtocol().consensusThreshold, total);
+}
+
+function getConsensusOutcome(agent) {
+  const stats = getApprovalStats(agent);
+  const threshold = getConsensusThresholdForAgent(agent);
+
+  return {
+    ...stats,
+    threshold,
+    reached: threshold === 0 || stats.approved >= threshold,
+    blocked: stats.rejected > 0,
+  };
+}
+
+function buildReviewPrompt(agent) {
+  return [
+    `You are reviewing output from ${agent.name}, a ${agent.roleLabel}.`,
+    `Shared mission:\n${briefInput.value.trim() || "No shared brief supplied."}`,
+    `Candidate output:\n${agent.lastOutput}`,
+    "Decide whether this work should progress in the autonomous chain of command.",
+    "Respond with APPROVE or CHANGES_REQUESTED on the first line.",
+    "Then provide a short justification and, if needed, the most important requested revision.",
+  ].join("\n\n");
+}
+
+async function requestConsensus(agent, options = {}) {
+  if (!agent.lastOutput) {
+    addActivity(agent.name, "No output to evaluate for consensus yet.");
+    return {
+      approvals: [],
+      reached: false,
+      blocked: false,
+      threshold: getConsensusThresholdForAgent(agent),
+    };
+  }
+
+  if (!agent.reviewers.length) {
+    agent.status = "approved";
+    addActivity(agent.name, "No command-chain reviewers assigned, so the work completed automatically.");
+    return {
+      approvals: [],
+      reached: true,
+      blocked: false,
+      threshold: 0,
+    };
+  }
+
+  agent.status = "review";
+  agent.metrics.reviewsRequested += 1;
+  addActivity(
+    agent.name,
+    options.source === "manual" ? "Consensus cycle started." : "Autonomous consensus cycle started.",
+  );
+  render();
+
+  for (const reviewerId of agent.reviewers) {
+    const reviewer = state.agents.find((entry) => entry.id === reviewerId);
+    if (!reviewer) {
+      continue;
+    }
+
+    const review = await sendAgentMessage(reviewer, buildReviewPrompt(agent));
+    const decision = parseReviewDecision(review);
+
+    agent.approvals[reviewer.id] = {
+      decision,
+      review,
+    };
+    reviewer.metrics.reviewsCompleted += 1;
+
+    if (decision === "approved") {
+      reviewer.metrics.approvalsGranted += 1;
+    } else {
+      reviewer.metrics.changesRequested += 1;
+    }
+
+    addMessage(reviewer.id, "assistant", review);
+    addActivity(
+      reviewer.name,
+      `${decision === "approved" ? "Supported" : "Blocked"} ${agent.name} in the consensus cycle.`,
+    );
+  }
+
+  updateAgentStatusFromApprovals(agent);
+  return getConsensusOutcome(agent);
+}
+
+function buildRevisionFeedback(agent) {
+  return Object.entries(agent.approvals)
+    .map(([reviewerId, entry]) => {
+      const reviewer = state.agents.find((candidate) => candidate.id === reviewerId);
+      return `${reviewer?.name || "Reviewer"}: ${entry.review}`;
+    })
+    .join("\n\n");
+}
+
+async function reviseAgentFromConsensus(agent, cycleNumber) {
+  const revisionPrompt = [
+    `You are revising your work after a failed consensus cycle.`,
+    `Mission:\n${briefInput.value.trim() || "No shared brief supplied."}`,
+    `Current output:\n${agent.lastOutput}`,
+    `Reviewer feedback:\n${buildRevisionFeedback(agent) || "No reviewer feedback captured."}`,
+    `Produce a stronger revision that addresses the blockers directly. This is revision cycle ${cycleNumber}.`,
+  ].join("\n\n");
+
+  const reply = await sendAgentMessage(agent, revisionPrompt);
+  agent.lastOutput = reply;
+  agent.approvals = {};
+  agent.metrics.runs += 1;
+  updateAgentStatusFromApprovals(agent);
+  addMessage(agent.id, "assistant", reply);
+  addActivity(agent.name, `Produced revision ${cycleNumber} after consensus feedback.`);
+}
+
+async function runAgentDraft(agent, contextLabel = "mission") {
+  const sharedBrief = briefInput.value.trim();
+  if (!sharedBrief) {
+    addActivity("Missing mission", "Add a mission so agents have a concrete objective.");
+    return false;
+  }
+
+  addActivity(agent.name, `Drafting against the shared ${contextLabel}.`);
+  addMessage(agent.id, "user", sharedBrief);
+  render();
+
+  const reply = await sendAgentMessage(
+    agent,
+    `Shared mission:\n${sharedBrief}\n\nDeliver your role-specific contribution, identify the next dependency in the chain of command, and keep the team moving toward completion.`,
+  );
+
+  agent.lastOutput = reply;
+  agent.approvals = {};
+  agent.metrics.runs += 1;
+  updateAgentStatusFromApprovals(agent);
+  addMessage(agent.id, "assistant", reply);
+  if (getRoleConfig(agent.roleId).canSpawn) {
+    const createdCount = applySpawnRecommendations(
+      agent,
+      extractSpawnActions(reply, paletteRoles.map((role) => role.id)),
+      [],
+      `${agent.name} expanded the team after reviewing the mission.`,
+    );
+    if (createdCount) {
+      addActivity(
+        agent.name,
+        `Created ${createdCount} agent${createdCount === 1 ? "" : "s"} from mission output.`,
+      );
+    }
+  }
+  addActivity(agent.name, "Produced a fresh draft and reset prior consensus decisions.");
+  return true;
+}
+
+async function driveAgentToConsensus(agent, options = {}) {
+  const protocol = getMissionProtocol();
+  const shouldDraft = options.forceDraft || !agent.lastOutput || agent.status === "blocked";
+
+  if (shouldDraft) {
+    const didDraft = await runAgentDraft(agent, options.contextLabel || "mission");
+    if (!didDraft) {
+      return;
+    }
+  }
+
+  let outcome = await requestConsensus(agent, {
+    source: options.source || "auto",
+  });
+  let cycle = 0;
+
+  while (outcome.blocked && cycle < protocol.revisionBudget) {
+    cycle += 1;
+    await reviseAgentFromConsensus(agent, cycle);
+    outcome = await requestConsensus(agent, {
+      source: options.source || "auto",
+    });
+  }
+
+  if (outcome.reached) {
+    agent.status = "approved";
+    addActivity(
+      agent.name,
+      outcome.threshold
+        ? `Reached consensus with ${outcome.approved}/${agent.reviewers.length} supporting reviewers.`
+        : "Completed without requiring reviewer consensus.",
+    );
     return;
   }
 
-  const sharedBrief = briefInput.value.trim();
-  if (!sharedBrief) {
-    addActivity("Missing brief", "Add a workspace brief so the agent has a concrete task.");
+  if (outcome.blocked) {
+    agent.status = "blocked";
+    const escalationMode = protocol.escalationMode;
+
+    if (escalationMode === "overseer") {
+      const overseer = state.agents.find((entry) => entry.roleId === "overseer");
+      if (overseer) {
+        addInsight({
+          title: `${agent.name} escalated`,
+          body: `${agent.name} exhausted ${protocol.revisionBudget} revision loop${protocol.revisionBudget === 1 ? "" : "s"} without reaching consensus.`,
+          bullets: [
+            `Escalated to ${overseer.name} for coordination advice.`,
+            "Reviewers should tighten the requested changes into one concrete unblocker.",
+          ],
+        });
+        addActivity(
+          agent.name,
+          `Escalated to ${overseer.name} after exhausting the revision budget.`,
+        );
+        return;
+      }
+    }
+
+    addActivity(
+      agent.name,
+      "Consensus did not converge within the revision budget. The agent remains blocked.",
+    );
+    return;
+  }
+
+  addActivity(
+    agent.name,
+    `Consensus is incomplete at ${outcome.approved}/${outcome.threshold}. Another cycle may be required.`,
+  );
+}
+
+async function runSelectedAgent() {
+  const agent = getSelectedAgent();
+  if (!agent) {
+    addActivity("No agent selected", "Choose an agent before advancing the mission.");
     return;
   }
 
   setPending(true);
-  addActivity(agent.name, "Drafting a response against the shared workspace brief.");
-  addMessage(agent.id, "user", sharedBrief);
-  render();
 
   try {
-    const reply = await sendAgentMessage(
-      agent,
-      `Shared workspace brief:\n${sharedBrief}\n\nDeliver your role-specific contribution for the current team and next likely stage of work.`,
-    );
-
-    agent.lastOutput = reply;
-    agent.approvals = {};
-    agent.metrics.runs += 1;
-    updateAgentStatusFromApprovals(agent);
-    addMessage(agent.id, "assistant", reply);
-    if (getRoleConfig(agent.roleId).canSpawn) {
-      const createdCount = applySpawnRecommendations(
-        agent,
-        extractSpawnActions(reply, paletteRoles.map((role) => role.id)),
-        [],
-        `${agent.name} expanded the team after reviewing the workspace brief.`,
-      );
-      if (createdCount) {
-        addActivity(
-          agent.name,
-          `Created ${createdCount} agent${createdCount === 1 ? "" : "s"} from its draft output.`,
-        );
-      }
-    }
-    addActivity(agent.name, "Produced a fresh draft and reset prior approvals.");
+    await driveAgentToConsensus(agent, {
+      forceDraft: true,
+      source: "manual",
+      contextLabel: "mission",
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     addMessage(agent.id, "system", errorMessage);
@@ -1345,69 +1569,204 @@ function parseReviewDecision(reviewText) {
 async function requestApproval() {
   const agent = getSelectedAgent();
   if (!agent) {
-    addActivity("No agent selected", "Choose an agent before requesting approval.");
-    return;
-  }
-
-  if (!agent.lastOutput) {
-    addActivity(agent.name, "No output to review yet.");
-    return;
-  }
-
-  if (!agent.reviewers.length) {
-    agent.status = "approved";
-    addActivity(agent.name, "No reviewers assigned, so the work was marked approved.");
-    render();
+    addActivity("No agent selected", "Choose an agent before starting consensus.");
     return;
   }
 
   setPending(true);
-  agent.status = "review";
-  agent.metrics.reviewsRequested += 1;
-  addActivity(agent.name, "Approval cycle started.");
+
+  try {
+    await driveAgentToConsensus(agent, {
+      forceDraft: false,
+      source: "manual",
+      contextLabel: "mission",
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    addActivity(agent.name, `Consensus cycle failed: ${errorMessage}`);
+  } finally {
+    setPending(false);
+    render();
+  }
+}
+
+function buildWorkspaceSnapshot() {
+  const metrics = getWorkspaceMetrics();
+  const team = state.agents
+    .map((agent) => {
+      const approvals = getApprovalStats(agent);
+      return `${agent.name} (${agent.roleLabel}) status=${agent.status} approvals=${approvals.approved}/${approvals.total} runs=${agent.metrics.runs} spawns=${agent.metrics.spawnedAgents}`;
+    })
+    .join("\n");
+
+  return [
+    `Shared mission:\n${briefInput.value.trim() || "No shared mission supplied."}`,
+    `Workspace metrics: efficiency=${metrics.efficiencyScore}, throughput=${Math.round(
+      metrics.throughput * 100,
+    )}%, consensusRate=${Math.round(metrics.approvalRate * 100)}%, revisionRate=${Math.round(
+      metrics.reworkRate * 100,
+    )}%`,
+    `Current team:\n${team || "No agents yet."}`,
+  ].join("\n\n");
+}
+
+function getCommandPriority(agent) {
+  const priorities = {
+    pm: 10,
+    architect: 20,
+    designer: 30,
+    engineer: 40,
+    qa: 50,
+    reviewer: 60,
+    overseer: 70,
+  };
+
+  return priorities[agent.roleId] ?? 999;
+}
+
+function getMissionQueue() {
+  return [...state.agents]
+    .filter((agent) => agent.status !== "approved")
+    .sort((left, right) => {
+      const priorityDelta = getCommandPriority(left) - getCommandPriority(right);
+      if (priorityDelta !== 0) {
+        return priorityDelta;
+      }
+
+      return left.name.localeCompare(right.name);
+    });
+}
+
+async function runWorkspaceMission() {
+  const queue = getMissionQueue();
+  if (!queue.length) {
+    addActivity("Mission control", "All current agents have already completed their work.");
+    return;
+  }
+
+  setPending(true);
+  addActivity(
+    "Mission control",
+    `Running ${queue.length} agent${queue.length === 1 ? "" : "s"} through the command queue.`,
+  );
   render();
 
   try {
-    for (const reviewerId of agent.reviewers) {
-      const reviewer = state.agents.find((entry) => entry.id === reviewerId);
-      if (!reviewer) {
-        continue;
-      }
-
-      const reviewPrompt = [
-        `You are reviewing output from ${agent.name}, a ${agent.roleLabel}.`,
-        `Shared workspace brief:\n${briefInput.value.trim() || "No shared brief supplied."}`,
-        `Candidate output:\n${agent.lastOutput}`,
-        "Respond with APPROVE or CHANGES_REQUESTED on the first line.",
-        "Then provide a short justification and, if needed, the most important requested revision.",
-      ].join("\n\n");
-
-      const review = await sendAgentMessage(reviewer, reviewPrompt);
-      const decision = parseReviewDecision(review);
-
-      agent.approvals[reviewer.id] = {
-        decision,
-        review,
-      };
-      reviewer.metrics.reviewsCompleted += 1;
-
-      if (decision === "approved") {
-        reviewer.metrics.approvalsGranted += 1;
-      } else {
-        reviewer.metrics.changesRequested += 1;
-      }
-
-      addMessage(reviewer.id, "assistant", review);
-      addActivity(
-        reviewer.name,
-        `${decision === "approved" ? "Approved" : "Requested changes on"} ${agent.name}.`,
-      );
+    for (const agent of queue) {
+      state.selectedAgentId = agent.id;
+      render();
+      await driveAgentToConsensus(agent, {
+        forceDraft: !agent.lastOutput || agent.status === "blocked",
+        source: "mission",
+        contextLabel: "mission",
+      });
     }
-
-    updateAgentStatusFromApprovals(agent);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    addActivity(agent.name, `Approval cycle failed: ${errorMessage}`);
+    addActivity("Mission control", `Mission run failed: ${errorMessage}`);
+  } finally {
+    setPending(false);
+    render();
+  }
+}
+
+function applySpawnRecommendations(agent, recommendations, fallbackPlan, fallbackSummary) {
+  const nextPlan = recommendations.plan.length ? recommendations.plan : fallbackPlan;
+  let createdCount = 0;
+
+  for (const suggestion of nextPlan) {
+    const role = getRoleConfig(suggestion.roleId);
+    const created = createAgent(suggestion.roleId, {
+      name: suggestion.name || undefined,
+      mission: suggestion.mission || role.mission,
+      spawnedBy: agent.id,
+      activity: `${role.label} spawned by ${agent.name}.`,
+    });
+    if (!created) {
+      break;
+    }
+    createdCount += 1;
+  }
+
+  if (!createdCount) {
+    return 0;
+  }
+
+  assignDefaultReviewers();
+  addInsight({
+    title: `${agent.name} recommendations`,
+    body: recommendations.summary || fallbackSummary,
+    bullets: recommendations.waysOfWorking.length
+      ? recommendations.waysOfWorking
+      : [
+          "Keep architecture and design aligned before adding more engineers.",
+          "Use QA and review as bottleneck detectors, not just final gates.",
+        ],
+  });
+
+  return createdCount;
+}
+
+function fallbackSpawnPlan(agent) {
+  if (agent.roleId === "pm") {
+    return [
+      { roleId: "architect", mission: "Turn the product direction into system-level workstreams and sequencing." },
+      { roleId: "designer", mission: "Define a consistent UI language for the orchestration workspace." },
+    ];
+  }
+
+  if (agent.roleId === "architect") {
+    return [
+      { roleId: "engineer", mission: "Build the next interaction slice and connect it cleanly to the workflow model." },
+      { roleId: "qa", mission: "Pressure-test the orchestration flows and approval edge cases." },
+    ];
+  }
+
+  return [
+    { roleId: "qa", mission: "Map failure modes and highlight process mistakes before scale." },
+    { roleId: "reviewer", mission: "Protect shipped quality by tightening review discipline." },
+  ];
+}
+
+async function spawnHelpersForSelected() {
+  const agent = getSelectedAgent();
+  if (!agent) {
+    addActivity("No agent selected", "Choose an agent before asking for expansion.");
+    return;
+  }
+
+  const roleConfig = getRoleConfig(agent.roleId);
+  if (!roleConfig.canSpawn) {
+    addActivity(agent.name, "This role cannot spawn additional agents.");
+    return;
+  }
+
+  setPending(true);
+  addActivity(agent.name, "Analyzing the workspace for new supporting roles.");
+  render();
+
+  try {
+    const spawnPrompt = [
+      roleConfig.id === "overseer"
+        ? "Analyze the team effectiveness and recommend new roles or ways of working to reduce mistakes."
+        : `Decide which additional agents should be spawned by ${agent.name}.`,
+      buildWorkspaceSnapshot(),
+      `Allowed role ids: ${paletteRoles.map((role) => role.id).join(", ")}.`,
+      "Respond in JSON with keys: spawn, waysOfWorking, summary.",
+      'Example: {"spawn":[{"roleId":"qa","mission":"..."},{"roleId":"engineer","mission":"..."}],"waysOfWorking":["..."],"summary":"..."}',
+    ].join("\n\n");
+
+    const reply = await sendAgentMessage(agent, spawnPrompt);
+    addMessage(agent.id, "assistant", reply);
+    applySpawnRecommendations(
+      agent,
+      extractSpawnActions(reply, paletteRoles.map((role) => role.id)),
+      fallbackSpawnPlan(agent),
+      `${agent.name} recommended expanding the team to reduce delivery risk.`,
+    );
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    addActivity(agent.name, `Expansion analysis failed: ${errorMessage}`);
   } finally {
     setPending(false);
     render();
@@ -1633,6 +1992,7 @@ agentCustomModelInput.addEventListener("input", () => {
 teamModeSelect.addEventListener("change", renderTeamModeDescription);
 composeTeamButton.addEventListener("click", () => composeTeamMode(teamModeSelect.value));
 seedButton.addEventListener("click", seedStarterTeam);
+runWorkspaceButton.addEventListener("click", runWorkspaceMission);
 runSelectedButton.addEventListener("click", runSelectedAgent);
 reviewSelectedButton.addEventListener("click", requestApproval);
 spawnHelperButton.addEventListener("click", spawnHelpersForSelected);
@@ -1692,6 +2052,15 @@ maxAgentsInput.addEventListener("input", () => {
   syncMaxAgentsInput();
   persistWorkspace();
 });
+consensusThresholdInput.addEventListener("input", () => {
+  syncMissionProtocolInputs();
+  persistWorkspace();
+});
+revisionBudgetInput.addEventListener("input", () => {
+  syncMissionProtocolInputs();
+  persistWorkspace();
+});
+escalationModeSelect.addEventListener("change", persistWorkspace);
 temperatureInput.addEventListener("input", invalidateAllAgentSessions);
 baseUrlInput.addEventListener("input", invalidateAllAgentSessions);
 systemPromptInput.addEventListener("input", invalidateAllAgentSessions);
@@ -1702,6 +2071,7 @@ initializeDetailResizer();
 syncModelFields();
 syncAgentModelFields();
 syncMaxAgentsInput();
+syncMissionProtocolInputs();
 renderTeamModeDescription();
 renderActivity();
 renderInsights();
@@ -1710,15 +2080,15 @@ render();
 
 if (!restoredWorkspace) {
   addInsight({
-    title: "Overseer baseline",
-    body: "Use an overseer to watch approval friction, missed QA coverage, and unnecessary role contention as the team grows.",
+    title: "Mission control baseline",
+    body: "Use an overseer to watch consensus friction, missed QA coverage, and chain-of-command gaps as the team grows.",
     bullets: [
       "Architects should spawn engineering and QA capacity when design and system direction are stable.",
-      "Design leads should stay in the approval loop for any UI-heavy implementation lane.",
+      "Design leads should stay in the consensus chain for any UI-heavy implementation lane.",
     ],
   });
   addActivity(
     "Workspace ready",
-    "Compose a team mode, run agents, measure workflow health, and let PMs, architects, or overseers expand the crew.",
+    "Compose a team mode, run the mission, and let the agents progress through consensus and revision loops without manual approval handling.",
   );
 }

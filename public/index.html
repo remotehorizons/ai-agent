@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Bluebird Agent Studio</title>
+    <title>Autonomy Command</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -16,15 +16,16 @@
     <div class="page-shell">
       <header class="hero">
         <div class="hero-topline">
-          <p class="eyebrow">Consensus workspace</p>
-          <div class="hero-badge">Miro-style orchestration foundation</div>
+          <p class="eyebrow">Autonomous mission workspace</p>
+          <div class="hero-badge">Consensus engine with explicit chain of command</div>
         </div>
         <div class="hero-grid">
           <div>
-            <h1>Bluebird Agent Studio</h1>
+            <h1>Autonomy Command</h1>
             <p class="lede">
-              Shape teams, measure coordination quality, and let lead agents
-              expand the crew before mistakes harden into process.
+              Define the mission once, let agents align through structured
+              consensus, and keep them progressing without waiting for a human
+              to push each step forward.
             </p>
           </div>
           <section class="hero-summary panel">
@@ -34,11 +35,11 @@
             </div>
             <div class="summary-stat">
               <span id="pending-count">0</span>
-              <label>Pending approvals</label>
+              <label>Consensus backlog</label>
             </div>
             <div class="summary-stat">
               <span id="approved-count">0</span>
-              <label>Approved outputs</label>
+              <label>Completed outputs</label>
             </div>
           </section>
         </div>
@@ -49,7 +50,7 @@
           <section class="panel stack">
             <div class="section-heading">
               <div>
-                <p class="section-kicker">Team Design</p>
+                <p class="section-kicker">Mission Design</p>
                 <h2>Compose Workspace</h2>
               </div>
               <button id="seed-button" class="ghost-button" type="button">
@@ -88,13 +89,45 @@
               </div>
             </div>
             <label class="field">
-              <span>Goal</span>
+              <span>Mission</span>
               <textarea
                 id="brief-input"
                 rows="6"
-                placeholder="Build a clickable, freeform orchestration interface where a product manager and systems architect can grow the team, design leads keep the UI coherent, and overseers reduce avoidable mistakes."
+                placeholder="Build an autonomous agent command system where product, architecture, design, engineering, QA, and oversight can negotiate next steps, revise when consensus fails, and keep moving toward mission completion without a human in the loop."
               ></textarea>
             </label>
+            <div class="protocol-grid">
+              <label class="field">
+                <span>Consensus Threshold</span>
+                <input
+                  id="consensus-threshold"
+                  name="consensusThreshold"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value="2"
+                />
+              </label>
+              <label class="field">
+                <span>Revision Budget</span>
+                <input
+                  id="revision-budget"
+                  name="revisionBudget"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value="2"
+                />
+              </label>
+              <label class="field">
+                <span>Escalation</span>
+                <select id="escalation-mode" name="escalationMode">
+                  <option value="overseer" selected>Escalate to Overseer</option>
+                  <option value="chain">Stay within chain of command</option>
+                  <option value="none">No escalation</option>
+                </select>
+              </label>
+            </div>
             <div class="settings-grid">
               <label class="field">
                 <span>Max Agents</span>
@@ -154,6 +187,11 @@
                 placeholder="Keep responses concrete, ship-worthy, and explicit about tradeoffs. Prefer reliable workflows over heroics."
               ></textarea>
             </label>
+            <p class="support-copy">
+              The mission protocol governs how many reviewers must align before
+              work is considered complete and how many autonomous revision loops
+              an agent gets before escalation.
+            </p>
           </section>
         </aside>
 
@@ -161,7 +199,7 @@
           <section class="panel metrics-panel">
             <div class="section-heading">
               <div>
-                <p class="section-kicker">Efficiency</p>
+                <p class="section-kicker">Autonomy</p>
                 <h2>Workflow Health</h2>
               </div>
             </div>
@@ -176,11 +214,11 @@
               </article>
               <article class="metric-card">
                 <span id="metric-approval-rate">0%</span>
-                <label>Approval rate</label>
+                <label>Consensus rate</label>
               </article>
               <article class="metric-card">
                 <span id="metric-rework-rate">0%</span>
-                <label>Rework pressure</label>
+                <label>Revision pressure</label>
               </article>
             </div>
           </section>
@@ -189,35 +227,38 @@
             <div class="section-heading">
               <div>
                 <p class="section-kicker">Workflow Board</p>
-                <h2>Agent Consensus Map</h2>
+                <h2>Command Progress Map</h2>
               </div>
               <div class="inline-actions">
+                <button id="run-workspace-button" class="ghost-button" type="button">
+                  Run Mission
+                </button>
                 <button id="run-selected-button" class="ghost-button" type="button">
-                  Run Selected
+                  Advance Selected
                 </button>
                 <button id="review-selected-button" class="primary-button" type="button">
-                  Request Approval
+                  Auto Consensus
                 </button>
               </div>
             </div>
             <div class="board-lanes">
               <section class="lane">
                 <div class="lane-header">
-                  <h3>Drafting</h3>
+                  <h3>Executing</h3>
                   <span id="lane-drafting-count">0</span>
                 </div>
                 <div id="lane-drafting" class="lane-list"></div>
               </section>
               <section class="lane">
                 <div class="lane-header">
-                  <h3>In Review</h3>
+                  <h3>Consensus</h3>
                   <span id="lane-review-count">0</span>
                 </div>
                 <div id="lane-review" class="lane-list"></div>
               </section>
               <section class="lane">
                 <div class="lane-header">
-                  <h3>Approved</h3>
+                  <h3>Completed</h3>
                   <span id="lane-approved-count">0</span>
                 </div>
                 <div id="lane-approved" class="lane-list"></div>
@@ -251,7 +292,7 @@
           <section id="insights-panel" class="panel insights-panel">
             <div class="section-heading">
               <div>
-                <p class="section-kicker">Overseer</p>
+                <p class="section-kicker">Mission Control</p>
                 <h2>Operational Advice</h2>
               </div>
             </div>
@@ -280,7 +321,7 @@
                   Full Screen
                 </button>
                 <button id="spawn-helper-button" class="ghost-button" type="button">
-                  Spawn Helpers
+                  Expand Chain
                 </button>
                 <button id="delete-agent-button" class="ghost-button danger" type="button">
                   Remove
@@ -332,7 +373,7 @@
                   <strong id="agent-status">Idle</strong>
                 </div>
                 <div>
-                  <p>Approvals</p>
+                  <p>Consensus</p>
                   <strong id="agent-approval-summary">0 / 0</strong>
                 </div>
                 <div>
@@ -343,20 +384,12 @@
                   <p>Spawns</p>
                   <strong id="agent-spawn-count">0</strong>
                 </div>
-                <div>
-                  <p>Total Tokens</p>
-                  <strong id="agent-total-tokens">0</strong>
-                </div>
-                <div>
-                  <p>Last Call</p>
-                  <strong id="agent-last-token-usage">0</strong>
-                </div>
               </div>
               <div class="reviewer-block">
                 <div class="reviewer-header">
                   <div>
-                    <p class="section-kicker">Reviewers</p>
-                    <h3>Approval Chain</h3>
+                    <p class="section-kicker">Command Chain</p>
+                    <h3>Consensus Reviewers</h3>
                   </div>
                 </div>
                 <div id="reviewer-list" class="reviewer-list"></div>
@@ -372,7 +405,7 @@
             <div class="section-heading">
               <div>
                 <p class="section-kicker">Direct Message</p>
-                <h2>Talk To Agent</h2>
+                <h2>Steer Agent</h2>
               </div>
               <div class="inline-actions panel-header-actions">
                 <p id="session-status" class="session-status">No agent selected.</p>
@@ -397,7 +430,7 @@
               <textarea
                 id="message-input"
                 rows="4"
-                placeholder="Ask the selected agent to refine the work, critique another agent, or propose a next step."
+                placeholder="Ask the selected agent to refine the mission, critique another agent, or propose the next autonomous move."
               ></textarea>
               <div class="composer-row">
                 <p class="hint">Messages are scoped to the selected agent.</p>
