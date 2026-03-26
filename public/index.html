@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Agent</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <p class="eyebrow">Remote Horizons</p>
+        <h1>AI agent control room</h1>
+        <p class="lede">
+          Chat with the agent in your browser, swap models at runtime, and keep
+          the same OpenAI-backed core.
+        </p>
+      </header>
+
+      <main class="layout">
+        <section class="panel controls-panel">
+          <div class="panel-heading">
+            <h2>Session Controls</h2>
+            <p>Tune each new browser session without touching `.env`.</p>
+          </div>
+
+          <form id="settings-form" class="settings-form">
+            <label>
+              <span>Model</span>
+              <input id="model" name="model" placeholder="gpt-4.1-mini" />
+            </label>
+
+            <label>
+              <span>Temperature</span>
+              <input
+                id="temperature"
+                name="temperature"
+                type="number"
+                min="0"
+                max="2"
+                step="0.1"
+                placeholder="0.2"
+              />
+            </label>
+
+            <label>
+              <span>Base URL</span>
+              <input
+                id="baseUrl"
+                name="baseUrl"
+                placeholder="http://localhost:11434/v1"
+              />
+            </label>
+
+            <label>
+              <span>System Prompt</span>
+              <textarea
+                id="systemPrompt"
+                name="systemPrompt"
+                rows="5"
+                placeholder="You are a pragmatic AI agent that answers clearly and concisely."
+              ></textarea>
+            </label>
+          </form>
+
+          <div class="session-actions">
+            <button id="reset-button" class="ghost-button" type="button">
+              Clear Conversation
+            </button>
+            <p id="session-status" class="session-status">No active session yet.</p>
+          </div>
+        </section>
+
+        <section class="panel chat-panel">
+          <div id="messages" class="messages" aria-live="polite"></div>
+
+          <form id="composer" class="composer">
+            <textarea
+              id="message-input"
+              name="message"
+              rows="3"
+              placeholder="Ask the agent to draft, summarize, plan, or critique."
+              required
+            ></textarea>
+            <div class="composer-row">
+              <p class="hint">Enter sends. Shift+Enter adds a new line.</p>
+              <button id="send-button" class="primary-button" type="submit">
+                Send
+              </button>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+
+    <template id="message-template">
+      <article class="message">
+        <div class="message-meta"></div>
+        <div class="message-body"></div>
+      </article>
+    </template>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
