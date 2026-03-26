@@ -7,6 +7,9 @@ A minimal TypeScript CLI agent with:
 - optional OpenAI-compatible base URL support
 - one-off and interactive chat modes
 - a browser UI backed by the same agent runtime
+- an Excel-style execution viewer for planning and progress
+- repo-aware terminal access inside the web app
+- enforced `codex/` branch and PR planning for feature work
 
 ## Setup
 
@@ -111,8 +114,17 @@ Each agent also tracks cumulative and last-call token usage in the board and ins
 
 The browser app is served by `Express` and uses the same `Agent` core as the CLI.
 
+The workspace now includes:
+
+- an Excel-style plan/progress table that agents are instructed to update on every substantive turn
+- terminal access in the project root for both manual use and agent-requested commands
+- GitHub repo visibility showing current branch, remote, and working-tree status
+- PR workflow enforcement for developer-facing work using `codex/` feature branches and PR metadata
+
 - `POST /api/chat` starts or continues a browser chat session
 - `POST /api/reset` clears a session's conversation memory
+- `GET /api/repo-status` returns branch, remote, dirty state, and git status text
+- `POST /api/terminal` runs a shell command in the repo root and returns stdout/stderr/exit code
 - `GET /api/health` is a lightweight health check
 
 If you want to test the chat path end to end, add a real `OPENAI_API_KEY` to `.env` and start the web server.

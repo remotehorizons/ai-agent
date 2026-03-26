@@ -214,6 +214,36 @@
               an agent gets before escalation.
             </p>
           </section>
+
+          <section class="panel stack">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Repo Control</p>
+                <h2>GitHub Workflow</h2>
+              </div>
+              <button id="repo-refresh-button" class="ghost-button" type="button">
+                Refresh Repo
+              </button>
+            </div>
+            <div class="detail-meta repo-meta">
+              <div>
+                <p>Branch</p>
+                <strong id="repo-branch">Loading...</strong>
+              </div>
+              <div>
+                <p>Working Tree</p>
+                <strong id="repo-dirty">Checking...</strong>
+              </div>
+            </div>
+            <label class="field">
+              <span>Origin Remote</span>
+              <input id="repo-remote" type="text" readonly />
+            </label>
+            <p class="support-copy">
+              Developer agents are required to plan work in the Excel view,
+              use `codex/` feature branches, and produce PR details for each feature.
+            </p>
+          </section>
         </aside>
 
         <section class="main-column">
@@ -241,6 +271,37 @@
                 <span id="metric-rework-rate">0%</span>
                 <label>Revision pressure</label>
               </article>
+            </div>
+          </section>
+
+          <section class="panel workbook-panel">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Execution Sheet</p>
+                <h2>Excel Viewer</h2>
+              </div>
+              <button id="workbook-download-button" class="ghost-button" type="button">
+                Export CSV
+              </button>
+            </div>
+            <div class="workbook-shell">
+              <table class="workbook-table">
+                <thead>
+                  <tr>
+                    <th>Task</th>
+                    <th>Owner</th>
+                    <th>Status</th>
+                    <th>Progress</th>
+                    <th>Branch</th>
+                    <th>PR</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody id="workbook-body"></tbody>
+              </table>
+              <div id="workbook-empty" class="activity-empty hidden">
+                Agents have not updated the Excel plan yet.
+              </div>
             </div>
           </section>
 
@@ -460,6 +521,31 @@
                 </button>
               </div>
             </form>
+          </section>
+
+          <section class="panel terminal-panel">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Project Shell</p>
+                <h2>Terminal Access</h2>
+              </div>
+            </div>
+            <form id="terminal-form" class="composer terminal-form">
+              <textarea
+                id="terminal-command-input"
+                rows="3"
+                placeholder="git status --short --branch"
+              ></textarea>
+              <div class="composer-row">
+                <p class="hint">
+                  Commands run in the project root. Agents can also request terminal commands.
+                </p>
+                <button id="terminal-run-button" class="primary-button" type="submit">
+                  Run Command
+                </button>
+              </div>
+            </form>
+            <div id="terminal-output" class="terminal-output"></div>
           </section>
         </aside>
       </main>

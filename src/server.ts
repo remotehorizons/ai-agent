@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { ConfigOverrides } from "./config.js";
+import { getRepoSnapshot, runTerminalCommand } from "./project-tools.js";
 import { SessionStore } from "./session-store.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -17,6 +18,10 @@ type ChatRequest = {
   baseUrl?: string;
   systemPrompt?: string;
   temperature?: number;
+};
+
+type TerminalRequest = {
+  command?: string;
 };
 
 function pickOverrides(body: ChatRequest): ConfigOverrides {
@@ -38,6 +43,18 @@ app.get("/api/health", (_request, response) => {
   response.json({ ok: true });
 });
 
+app.get("/api/repo-status", async (_request, response) => {
+  try {
+    const repo = await getRepoSnapshot(process.cwd());
+    response.json(repo);
+  } catch (error: unknown) {
+    const messageText =
+      error instanceof Error ? error.message : "Unknown server error";
+
+    response.status(500).json({ error: messageText });
+  }
+});
+
 app.post("/api/chat", async (request, response) => {
   const body = request.body as ChatRequest;
   const message = body.message?.trim();
@@ -56,6 +73,26 @@ app.post("/api/chat", async (request, response) => {
       reply: result.content,
       usage: result.usage,
     });
+  } catch (error: unknown) {
+    const messageText =
+      error instanceof Error ? error.message : "Unknown server error";
+
+    response.status(500).json({ error: messageText });
+  }
+});
+
+app.post("/api/terminal", async (request, response) => {
+  const body = request.body as TerminalRequest;
+  const command = body.command?.trim();
+
+  if (!command) {
+    response.status(400).json({ error: "command is required" });
+    return;
+  }
+
+  try {
+    const result = await runTerminalCommand(command, process.cwd());
+    response.json(result);
   } catch (error: unknown) {
     const messageText =
       error instanceof Error ? error.message : "Unknown server error";

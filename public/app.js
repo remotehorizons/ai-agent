@@ -1,4 +1,4 @@
-import { extractSpawnActions } from "./agent-actions.js";
+import { extractSpawnActions, extractWorkflowActions } from "./agent-actions.js";
 
 const palette = document.querySelector("#palette");
 const briefInput = document.querySelector("#brief-input");
@@ -46,6 +46,9 @@ const metricEfficiency = document.querySelector("#metric-efficiency");
 const metricThroughput = document.querySelector("#metric-throughput");
 const metricApprovalRate = document.querySelector("#metric-approval-rate");
 const metricReworkRate = document.querySelector("#metric-rework-rate");
+const workbookBody = document.querySelector("#workbook-body");
+const workbookEmpty = document.querySelector("#workbook-empty");
+const workbookDownloadButton = document.querySelector("#workbook-download-button");
 const detailForm = document.querySelector("#detail-form");
 const emptyState = document.querySelector("#empty-state");
 const agentNameInput = document.querySelector("#agent-name");
@@ -66,6 +69,14 @@ const messageTemplate = document.querySelector("#message-template");
 const composer = document.querySelector("#composer");
 const messageInput = document.querySelector("#message-input");
 const sendButton = document.querySelector("#send-button");
+const repoBranch = document.querySelector("#repo-branch");
+const repoDirty = document.querySelector("#repo-dirty");
+const repoRemote = document.querySelector("#repo-remote");
+const repoRefreshButton = document.querySelector("#repo-refresh-button");
+const terminalForm = document.querySelector("#terminal-form");
+const terminalCommandInput = document.querySelector("#terminal-command-input");
+const terminalRunButton = document.querySelector("#terminal-run-button");
+const terminalOutput = document.querySelector("#terminal-output");
 
 const openAiModelOptions = [
   { value: "gpt-5.2", label: "GPT-5.2" },
@@ -238,6 +249,15 @@ const state = {
   activity: [],
   logsByAgent: new Map(),
   insights: [],
+  workbookRows: [],
+  terminalEntries: [],
+  repo: {
+    cwd: "",
+    branch: null,
+    remoteUrl: null,
+    isDirty: false,
+    status: "",
+  },
   layout: {
     detailColumnWidth: 380,
     expandedPanelId: null,
@@ -265,7 +285,28 @@ function defaultMetrics() {
     changesRequested: 0,
     directMessages: 0,
     spawnedAgents: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    lastInputTokens: 0,
+    lastOutputTokens: 0,
+    lastTotalTokens: 0,
   };
+}
+
+function defaultWorkbookRows() {
+  return [
+    {
+      id: uid("row"),
+      task: "Define mission plan",
+      owner: "Product Manager 1",
+      status: "Planned",
+      progress: 0,
+      branch: "codex/define-mission-plan",
+      pullRequest: "PR required",
+      notes: "Agents must update this Excel view as work moves.",
+    },
+  ];
 }
 
 function parseMaxAgents(value) {
@@ -331,6 +372,12 @@ function sanitizeMetrics(metrics) {
     changesRequested: Number(metrics.changesRequested) || 0,
     directMessages: Number(metrics.directMessages) || 0,
     spawnedAgents: Number(metrics.spawnedAgents) || 0,
+    inputTokens: Number(metrics.inputTokens) || 0,
+    outputTokens: Number(metrics.outputTokens) || 0,
+    totalTokens: Number(metrics.totalTokens) || 0,
+    lastInputTokens: Number(metrics.lastInputTokens) || 0,
+    lastOutputTokens: Number(metrics.lastOutputTokens) || 0,
+    lastTotalTokens: Number(metrics.lastTotalTokens) || 0,
   };
 }
 
@@ -341,6 +388,8 @@ function serializeWorkspace() {
     activity: state.activity,
     logsByAgent: Object.fromEntries(state.logsByAgent),
     insights: state.insights,
+    workbookRows: state.workbookRows,
+    terminalEntries: state.terminalEntries,
     layout: state.layout,
     controls: {
       brief: briefInput.value,
@@ -535,6 +584,12 @@ function restoreWorkspace() {
         : state.agents[0]?.id ?? null;
     state.activity = Array.isArray(parsed.activity) ? parsed.activity : [];
     state.insights = Array.isArray(parsed.insights) ? parsed.insights : [];
+    state.workbookRows = Array.isArray(parsed.workbookRows) && parsed.workbookRows.length
+      ? parsed.workbookRows
+      : defaultWorkbookRows();
+    state.terminalEntries = Array.isArray(parsed.terminalEntries)
+      ? parsed.terminalEntries
+      : [];
     const layout = parsed.layout && typeof parsed.layout === "object" ? parsed.layout : {};
     state.layout = {
       detailColumnWidth: clampDetailColumnWidth(layout.detailColumnWidth),
@@ -699,6 +754,25 @@ function createAgent(roleId, options = {}) {
   }
 
   addActivity(agent.name, options.activity || "Agent created and ready for work.");
+  upsertWorkbookRows(
+    [
+      {
+        task: agent.mission,
+        owner: agent.name,
+        status: "Planned",
+        progress: 0,
+        branch: agent.roleId === "engineer" || agent.roleId === "reviewer" || agent.roleId === "qa"
+          ? `codex/${agent.name.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`
+          : "",
+        pullRequest:
+          agent.roleId === "engineer" || agent.roleId === "reviewer" || agent.roleId === "qa"
+            ? "PR required"
+            : "",
+        notes: "Created from the workspace palette.",
+      },
+    ],
+    agent,
+  );
   return agent;
 }
 
@@ -1170,11 +1244,142 @@ function renderInsights() {
   }
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function renderWorkbook() {
+  workbookBody.innerHTML = "";
+
+  if (!state.workbookRows.length) {
+    workbookEmpty.classList.remove("hidden");
+    return;
+  }
+
+  workbookEmpty.classList.add("hidden");
+
+  for (const row of state.workbookRows) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(row.task)}</td>
+      <td>${escapeHtml(row.owner || "Unassigned")}</td>
+      <td>${escapeHtml(row.status || "Planned")}</td>
+      <td><span class="progress-pill">${Number(row.progress) || 0}%</span></td>
+      <td>${escapeHtml(row.branch || "")}</td>
+      <td>${escapeHtml(row.pullRequest || "")}</td>
+      <td>${escapeHtml(row.notes || "")}</td>
+    `;
+    workbookBody.appendChild(tr);
+  }
+}
+
+function renderRepoStatus() {
+  repoBranch.textContent = state.repo.branch || "No branch detected";
+  repoDirty.textContent = state.repo.isDirty ? "Dirty" : "Clean";
+  repoRemote.value = state.repo.remoteUrl || "";
+}
+
+function renderTerminal() {
+  terminalOutput.innerHTML = "";
+
+  if (!state.terminalEntries.length) {
+    terminalOutput.innerHTML =
+      '<div class="activity-empty">Terminal output will appear here.</div>';
+    return;
+  }
+
+  for (const entry of state.terminalEntries) {
+    const article = document.createElement("article");
+    article.className = "terminal-entry";
+    article.innerHTML = `
+      <strong>${escapeHtml(entry.command)}</strong>
+      <span>${escapeHtml(entry.summary)}</span>
+      <pre>${escapeHtml(entry.output)}</pre>
+    `;
+    terminalOutput.appendChild(article);
+  }
+}
+
+function upsertWorkbookRows(rows, agent) {
+  for (const nextRow of rows) {
+    const existing = state.workbookRows.find(
+      (row) =>
+        String(row.task || "").toLowerCase() === nextRow.task.toLowerCase() &&
+        String(row.owner || "").toLowerCase() ===
+          (nextRow.owner || agent?.name || "").toLowerCase(),
+    );
+
+    if (existing) {
+      existing.owner = nextRow.owner || agent?.name || existing.owner;
+      existing.status = nextRow.status || existing.status;
+      existing.progress = Number(nextRow.progress) || 0;
+      existing.branch = nextRow.branch || existing.branch;
+      existing.pullRequest = nextRow.pullRequest || existing.pullRequest;
+      existing.notes = nextRow.notes || existing.notes;
+      continue;
+    }
+
+    state.workbookRows.push({
+      id: uid("row"),
+      task: nextRow.task,
+      owner: nextRow.owner || agent?.name || "",
+      status: nextRow.status || "Planned",
+      progress: Number(nextRow.progress) || 0,
+      branch: nextRow.branch || "",
+      pullRequest: nextRow.pullRequest || "",
+      notes: nextRow.notes || "",
+    });
+  }
+}
+
+function addTerminalEntry(command, output, summary) {
+  state.terminalEntries.unshift({
+    id: uid("terminal"),
+    command,
+    output,
+    summary,
+  });
+  state.terminalEntries = state.terminalEntries.slice(0, 20);
+}
+
+function exportWorkbookCsv() {
+  const headers = ["Task", "Owner", "Status", "Progress", "Branch", "PR", "Notes"];
+  const rows = state.workbookRows.map((row) => [
+    row.task,
+    row.owner,
+    row.status,
+    String(row.progress),
+    row.branch,
+    row.pullRequest,
+    row.notes,
+  ]);
+  const csv = [headers, ...rows]
+    .map((columns) =>
+      columns
+        .map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`)
+        .join(","),
+    )
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "agent-execution-plan.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function render() {
   renderSummary();
   renderBoard();
   renderDetails();
   renderInsights();
+  renderWorkbook();
+  renderRepoStatus();
+  renderTerminal();
   applyLayoutState();
   persistWorkspace();
 }
@@ -1187,8 +1392,11 @@ function setPending(isPending) {
   reviewSelectedButton.disabled = isPending;
   composeTeamButton.disabled = isPending;
   seedButton.disabled = isPending;
+  repoRefreshButton.disabled = isPending;
+  terminalRunButton.disabled = isPending;
   deleteAgentButton.disabled = isPending || !state.selectedAgentId;
   messageInput.disabled = isPending;
+  terminalCommandInput.disabled = isPending;
   const selectedAgent = getSelectedAgent();
   spawnHelperButton.disabled =
     isPending || !selectedAgent || !getRoleConfig(selectedAgent.roleId).canSpawn;
@@ -1212,6 +1420,40 @@ async function postJson(url, body) {
   return payload;
 }
 
+async function getJson(url) {
+  const response = await fetch(url);
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.error || "Request failed");
+  }
+
+  return payload;
+}
+
+async function refreshRepoStatus() {
+  try {
+    state.repo = await getJson("/api/repo-status");
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    addActivity("Repo status", `Failed to refresh repository state: ${errorMessage}`);
+  }
+
+  render();
+}
+
+async function runTerminalCommand(command, sourceLabel = "Terminal") {
+  const result = await postJson("/api/terminal", { command });
+  const output = [result.stdout, result.stderr].filter(Boolean).join("\n\n").trim() || "(no output)";
+  const summary = `${sourceLabel} exit code ${result.exitCode} in ${result.cwd}`;
+
+  addTerminalEntry(command, output, summary);
+  addActivity(sourceLabel, `${command} completed with exit code ${result.exitCode}.`);
+  await refreshRepoStatus();
+
+  return result;
+}
+
 function buildAgentSystemPrompt(agent) {
   const globalPolicy = systemPromptInput.value.trim();
   const protocol = getMissionProtocol();
@@ -1227,6 +1469,19 @@ function buildAgentSystemPrompt(agent) {
         "Keep spawn to at most 3 agents.",
       ].join("\n")
     : "";
+  const workbookSnapshot = state.workbookRows.length
+    ? state.workbookRows
+        .map(
+          (row) =>
+            `${row.task} | owner=${row.owner || "unassigned"} | status=${row.status} | progress=${row.progress}% | branch=${row.branch || "none"} | pr=${row.pullRequest || "none"}`,
+        )
+        .join("\n")
+    : "No Excel rows exist yet.";
+  const repoSummary = [
+    `Repository branch: ${state.repo.branch || "unknown"}`,
+    `Origin remote: ${state.repo.remoteUrl || "not detected"}`,
+    `Working tree: ${state.repo.isDirty ? "dirty" : "clean"}`,
+  ].join("\n");
 
   return [
     globalPolicy,
@@ -1235,10 +1490,20 @@ function buildAgentSystemPrompt(agent) {
     `Your mission: ${agent.mission}`,
     `Operate autonomously. Seek forward progress, make explicit decisions, and resolve ambiguity instead of waiting for human confirmation.`,
     `Mission protocol: reach at least ${protocol.consensusThreshold} supporting reviews when reviewers exist, keep revisions within ${protocol.revisionBudget} loops, and escalate according to ${protocol.escalationMode}.`,
+    `You must use the Excel execution sheet as the source of truth for planning and progress tracking. Every substantive reply must include an Excel update.`,
+    `For any feature or code change, developer-facing agents must work on a dedicated git branch prefixed with codex/ and produce pull request details before considering the feature complete.`,
+    `You have terminal access by requesting commands in the JSON block. Use it for repo inspection, testing, and implementation steps when needed.`,
+    `Current Excel sheet:\n${workbookSnapshot}`,
+    `Current repo state:\n${repoSummary}`,
     getEffectiveAgentModel(agent)
       ? `Use the model routing preference: ${getEffectiveAgentModel(agent)}.`
       : "",
     reviewerNames ? `Your work must be reviewed by: ${reviewerNames}.` : "",
+    [
+      "End your reply with a JSON block that follows this schema:",
+      '{"excel":{"rows":[{"task":"Feature name","owner":"Agent name","status":"Planned|In Progress|Blocked|In Review|Done","progress":0,"branch":"codex/feature-name","pullRequest":"Draft PR or URL","notes":"What changed"}]},"terminal":{"commands":[{"command":"git status --short --branch","purpose":"Why this command matters"}]},"git":{"feature":"Feature name","branch":"codex/feature-name","prTitle":"PR title","prBody":"PR body","prStatus":"required|draft|open"}}',
+      "If no terminal command is needed, use an empty terminal.commands array.",
+    ].join("\n"),
     spawnInstruction,
   ]
     .filter(Boolean)
@@ -1274,6 +1539,50 @@ async function sendAgentMessage(agent, message) {
   agent.metrics.lastTotalTokens = Number(usage.totalTokens) || 0;
 
   return payload.reply;
+}
+
+async function processWorkflowActions(agent, reply, options = {}) {
+  const actions = extractWorkflowActions(reply);
+  const shouldRequireExcel = options.requireExcel !== false;
+
+  if (actions.excelRows.length) {
+    upsertWorkbookRows(actions.excelRows, agent);
+    addActivity(agent.name, `Updated ${actions.excelRows.length} row${actions.excelRows.length === 1 ? "" : "s"} in the Excel plan.`);
+  } else if (shouldRequireExcel) {
+    addActivity(
+      `${agent.name} policy warning`,
+      "Reply did not include an Excel update. Agents are expected to track progress in the sheet.",
+    );
+  }
+
+  if (actions.git?.branch || actions.git?.prTitle) {
+    upsertWorkbookRows(
+      [
+        {
+          task: actions.git.feature || `${agent.name} feature`,
+          owner: agent.name,
+          status: "In Review",
+          progress: 90,
+          branch: actions.git.branch || "",
+          pullRequest: actions.git.prTitle || actions.git.prStatus || "PR required",
+          notes: actions.git.prBody || "PR metadata captured.",
+        },
+      ],
+      agent,
+    );
+    addInsight({
+      title: `${agent.name} PR plan`,
+      body: actions.git.prTitle || "Pull request details captured for the current feature.",
+      bullets: [
+        actions.git.branch ? `Branch: ${actions.git.branch}` : "Branch missing",
+        actions.git.prStatus ? `PR status: ${actions.git.prStatus}` : "PR status not supplied",
+      ],
+    });
+  }
+
+  for (const terminalAction of actions.terminalCommands) {
+    await runTerminalCommand(terminalAction.command, `${agent.name} terminal`);
+  }
 }
 
 function updateAgentStatusFromApprovals(agent) {
@@ -1420,6 +1729,7 @@ async function reviseAgentFromConsensus(agent, cycleNumber) {
   agent.metrics.runs += 1;
   updateAgentStatusFromApprovals(agent);
   addMessage(agent.id, "assistant", reply);
+  await processWorkflowActions(agent, reply);
   addActivity(agent.name, `Produced revision ${cycleNumber} after consensus feedback.`);
 }
 
@@ -1444,6 +1754,7 @@ async function runAgentDraft(agent, contextLabel = "mission") {
   agent.metrics.runs += 1;
   updateAgentStatusFromApprovals(agent);
   addMessage(agent.id, "assistant", reply);
+  await processWorkflowActions(agent, reply);
   if (getRoleConfig(agent.roleId).canSpawn) {
     const createdCount = applySpawnRecommendations(
       agent,
@@ -1598,6 +1909,12 @@ function buildWorkspaceSnapshot() {
       return `${agent.name} (${agent.roleLabel}) status=${agent.status} approvals=${approvals.approved}/${approvals.total} runs=${agent.metrics.runs} spawns=${agent.metrics.spawnedAgents}`;
     })
     .join("\n");
+  const workbook = state.workbookRows
+    .map(
+      (row) =>
+        `${row.task} | owner=${row.owner || "unassigned"} | status=${row.status} | progress=${row.progress}% | branch=${row.branch || "none"} | pr=${row.pullRequest || "none"}`,
+    )
+    .join("\n");
 
   return [
     `Shared mission:\n${briefInput.value.trim() || "No shared mission supplied."}`,
@@ -1607,6 +1924,8 @@ function buildWorkspaceSnapshot() {
       metrics.reworkRate * 100,
     )}%`,
     `Current team:\n${team || "No agents yet."}`,
+    `Excel plan:\n${workbook || "No rows yet."}`,
+    `Repo branch=${state.repo.branch || "unknown"} dirty=${state.repo.isDirty ? "yes" : "no"} remote=${state.repo.remoteUrl || "none"}`,
   ].join("\n\n");
 }
 
@@ -1758,6 +2077,7 @@ async function spawnHelpersForSelected() {
 
     const reply = await sendAgentMessage(agent, spawnPrompt);
     addMessage(agent.id, "assistant", reply);
+    await processWorkflowActions(agent, reply);
     applySpawnRecommendations(
       agent,
       extractSpawnActions(reply, paletteRoles.map((role) => role.id)),
@@ -1791,6 +2111,7 @@ composer.addEventListener("submit", async (event) => {
   try {
     const reply = await sendAgentMessage(agent, message);
     addMessage(agent.id, "assistant", reply);
+    await processWorkflowActions(agent, reply);
     if (getRoleConfig(agent.roleId).canSpawn) {
       const createdCount = applySpawnRecommendations(
         agent,
@@ -1900,6 +2221,33 @@ clearActivityButton.addEventListener("click", () => {
   persistWorkspace();
 });
 
+workbookDownloadButton.addEventListener("click", exportWorkbookCsv);
+repoRefreshButton.addEventListener("click", () => {
+  void refreshRepoStatus();
+});
+
+terminalForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const command = terminalCommandInput.value.trim();
+
+  if (!command) {
+    return;
+  }
+
+  setPending(true);
+
+  try {
+    await runTerminalCommand(command);
+    terminalCommandInput.value = "";
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    addActivity("Terminal", `Command failed: ${errorMessage}`);
+  } finally {
+    setPending(false);
+    render();
+  }
+});
+
 detailExpandButton.addEventListener("click", () => toggleExpandedPanel("detail"));
 chatExpandButton.addEventListener("click", () => toggleExpandedPanel("chat"));
 detailFullscreenButton.addEventListener("click", () => toggleFullscreenPanel("detail"));
@@ -1944,6 +2292,9 @@ systemPromptInput.addEventListener("input", invalidateAllAgentSessions);
 
 renderPalette();
 const restoredWorkspace = restoreWorkspace();
+if (!restoredWorkspace) {
+  state.workbookRows = defaultWorkbookRows();
+}
 initializeDetailResizer();
 syncModelFields();
 syncAgentModelFields();
@@ -1954,6 +2305,7 @@ renderActivity();
 renderInsights();
 applyLayoutState();
 render();
+void refreshRepoStatus();
 
 if (!restoredWorkspace) {
   addInsight({
