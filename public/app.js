@@ -16,6 +16,14 @@ const reviewSelectedButton = document.querySelector("#review-selected-button");
 const spawnHelperButton = document.querySelector("#spawn-helper-button");
 const clearActivityButton = document.querySelector("#clear-activity-button");
 const deleteAgentButton = document.querySelector("#delete-agent-button");
+const detailColumn = document.querySelector("#detail-column");
+const detailResizer = document.querySelector("#detail-resizer");
+const detailPanel = document.querySelector("#detail-panel");
+const chatPanel = document.querySelector("#chat-panel");
+const detailExpandButton = document.querySelector("#detail-expand-button");
+const detailFullscreenButton = document.querySelector("#detail-fullscreen-button");
+const chatExpandButton = document.querySelector("#chat-expand-button");
+const chatFullscreenButton = document.querySelector("#chat-fullscreen-button");
 const activityFeed = document.querySelector("#activity-feed");
 const activityTemplate = document.querySelector("#activity-template");
 const insightsList = document.querySelector("#insights-list");
@@ -55,10 +63,8 @@ const sendButton = document.querySelector("#send-button");
 
 const openAiModelOptions = [
   { value: "gpt-5.2", label: "GPT-5.2" },
-  { value: "gpt-5.2-pro", label: "GPT-5.2 Pro" },
   { value: "gpt-5.1", label: "GPT-5.1" },
   { value: "gpt-5", label: "GPT-5" },
-  { value: "gpt-5-pro", label: "GPT-5 Pro" },
   { value: "gpt-5-mini", label: "GPT-5 Mini" },
   { value: "gpt-5-nano", label: "GPT-5 Nano" },
   { value: "gpt-4.1", label: "GPT-4.1" },
@@ -199,6 +205,26 @@ function populateModelSelect(select, options, config = {}) {
   }
 }
 
+function getKnownModelValues() {
+  return new Set(openAiModelOptions.map((option) => option.value));
+}
+
+function normalizeWorkspaceModelValue(value) {
+  if (value === "custom") {
+    return value;
+  }
+
+  return getKnownModelValues().has(value) ? value : defaultWorkspaceModel;
+}
+
+function normalizeAgentModelMode(value) {
+  if (value === "workspace" || value === "custom") {
+    return value;
+  }
+
+  return getKnownModelValues().has(value) ? value : "workspace";
+}
+
 const state = {
   agents: [],
   selectedAgentId: null,
@@ -206,10 +232,19 @@ const state = {
   activity: [],
   logsByAgent: new Map(),
   insights: [],
+  layout: {
+    detailColumnWidth: 380,
+    expandedPanelId: null,
+    fullscreenPanelId: null,
+  },
 };
 
 const workspaceStorageKey = "ai-agent-workspace/v1";
 const defaultMaxAgents = 50;
+const defaultWorkspaceModel = "gpt-4.1-mini";
+const defaultDetailColumnWidth = 380;
+const minDetailColumnWidth = 320;
+const maxDetailColumnWidth = 760;
 
 function uid(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -276,6 +311,7 @@ function serializeWorkspace() {
     activity: state.activity,
     logsByAgent: Object.fromEntries(state.logsByAgent),
     insights: state.insights,
+    layout: state.layout,
     controls: {
       brief: briefInput.value,
       maxAgents: maxAgentsInput.value,
@@ -302,6 +338,125 @@ function persistWorkspace() {
   } catch {
     // Ignore persistence failures so the app remains usable.
   }
+}
+
+function clampDetailColumnWidth(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return defaultDetailColumnWidth;
+  }
+
+  return Math.min(maxDetailColumnWidth, Math.max(minDetailColumnWidth, Math.round(parsed)));
+}
+
+function normalizePanelId(value) {
+  return value === "detail" || value === "chat" ? value : null;
+}
+
+function applyLayoutState() {
+  document.documentElement.style.setProperty(
+    "--detail-column-width",
+    `${clampDetailColumnWidth(state.layout.detailColumnWidth)}px`,
+  );
+
+  for (const [panelId, panel] of [
+    ["detail", detailPanel],
+    ["chat", chatPanel],
+  ]) {
+    const isExpanded = state.layout.expandedPanelId === panelId;
+    const isFullscreen = state.layout.fullscreenPanelId === panelId;
+    panel.classList.toggle("is-expanded", isExpanded && !isFullscreen);
+    panel.classList.toggle("is-fullscreen", isFullscreen);
+  }
+
+  document.body.classList.toggle(
+    "panel-fullscreen-lock",
+    Boolean(state.layout.fullscreenPanelId),
+  );
+  syncPanelButtons();
+}
+
+function syncPanelButtons() {
+  detailExpandButton.textContent =
+    state.layout.expandedPanelId === "detail" ? "Collapse" : "Expand";
+  chatExpandButton.textContent =
+    state.layout.expandedPanelId === "chat" ? "Collapse" : "Expand";
+  detailFullscreenButton.textContent =
+    state.layout.fullscreenPanelId === "detail" ? "Exit Full Screen" : "Full Screen";
+  chatFullscreenButton.textContent =
+    state.layout.fullscreenPanelId === "chat" ? "Exit Full Screen" : "Full Screen";
+}
+
+function toggleExpandedPanel(panelId) {
+  if (state.layout.fullscreenPanelId === panelId) {
+    state.layout.fullscreenPanelId = null;
+  }
+
+  state.layout.expandedPanelId =
+    state.layout.expandedPanelId === panelId ? null : panelId;
+  applyLayoutState();
+  persistWorkspace();
+}
+
+function toggleFullscreenPanel(panelId) {
+  const nextFullscreen =
+    state.layout.fullscreenPanelId === panelId ? null : panelId;
+  state.layout.fullscreenPanelId = nextFullscreen;
+  if (nextFullscreen) {
+    state.layout.expandedPanelId = panelId;
+  }
+  applyLayoutState();
+  persistWorkspace();
+}
+
+function setDetailColumnWidth(value) {
+  state.layout.detailColumnWidth = clampDetailColumnWidth(value);
+  applyLayoutState();
+}
+
+function initializeDetailResizer() {
+  if (!detailResizer || !detailColumn) {
+    return;
+  }
+
+  let dragState = null;
+
+  detailResizer.addEventListener("pointerdown", (event) => {
+    if (window.innerWidth <= 1280) {
+      return;
+    }
+
+    dragState = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: state.layout.detailColumnWidth,
+    };
+    detailResizer.classList.add("is-dragging");
+    detailResizer.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  });
+
+  detailResizer.addEventListener("pointermove", (event) => {
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const delta = dragState.startX - event.clientX;
+    setDetailColumnWidth(dragState.startWidth + delta);
+  });
+
+  const stopDragging = (event) => {
+    if (!dragState || (event && dragState.pointerId !== event.pointerId)) {
+      return;
+    }
+
+    detailResizer.classList.remove("is-dragging");
+    persistWorkspace();
+    dragState = null;
+  };
+
+  detailResizer.addEventListener("pointerup", stopDragging);
+  detailResizer.addEventListener("pointercancel", stopDragging);
 }
 
 function restoreWorkspace() {
@@ -334,6 +489,9 @@ function restoreWorkspace() {
             : [],
           approvals:
             agent.approvals && typeof agent.approvals === "object" ? agent.approvals : {},
+          modelMode: normalizeAgentModelMode(agent.modelMode),
+          customModel:
+            typeof agent.customModel === "string" ? agent.customModel : "",
           metrics: sanitizeMetrics(agent.metrics),
         };
       });
@@ -344,6 +502,12 @@ function restoreWorkspace() {
         : state.agents[0]?.id ?? null;
     state.activity = Array.isArray(parsed.activity) ? parsed.activity : [];
     state.insights = Array.isArray(parsed.insights) ? parsed.insights : [];
+    const layout = parsed.layout && typeof parsed.layout === "object" ? parsed.layout : {};
+    state.layout = {
+      detailColumnWidth: clampDetailColumnWidth(layout.detailColumnWidth),
+      expandedPanelId: normalizePanelId(layout.expandedPanelId),
+      fullscreenPanelId: normalizePanelId(layout.fullscreenPanelId),
+    };
     state.logsByAgent = new Map(
       Object.entries(parsed.logsByAgent ?? {}).map(([agentId, entries]) => [
         agentId,
@@ -362,7 +526,10 @@ function restoreWorkspace() {
     briefInput.value = typeof controls.brief === "string" ? controls.brief : "";
     maxAgentsInput.value =
       typeof controls.maxAgents === "string" ? controls.maxAgents : String(defaultMaxAgents);
-    modelSelect.value = typeof controls.model === "string" ? controls.model : modelSelect.value;
+    modelSelect.value =
+      typeof controls.model === "string"
+        ? normalizeWorkspaceModelValue(controls.model)
+        : defaultWorkspaceModel;
     customModelInput.value =
       typeof controls.customModel === "string" ? controls.customModel : "";
     temperatureInput.value =
@@ -400,7 +567,7 @@ function getOverrides() {
     model:
       selectedModel === "custom"
         ? customModel || undefined
-        : selectedModel || undefined,
+        : normalizeWorkspaceModelValue(selectedModel) || undefined,
     baseUrl: baseUrlInput.value.trim() || undefined,
     systemPrompt: systemPromptInput.value.trim() || undefined,
     temperature: temperatureValue ? Number(temperatureValue) : undefined,
@@ -413,10 +580,10 @@ function getEffectiveAgentModel(agent) {
   }
 
   if (agent.modelMode && agent.modelMode !== "workspace") {
-    return agent.modelMode;
+    return normalizeWorkspaceModelValue(agent.modelMode);
   }
 
-  return getOverrides().model;
+  return getOverrides().model ?? defaultWorkspaceModel;
 }
 
 function syncModelFields() {
@@ -967,6 +1134,7 @@ function render() {
   renderBoard();
   renderDetails();
   renderInsights();
+  applyLayoutState();
   persistWorkspace();
 }
 
@@ -1451,6 +1619,19 @@ clearActivityButton.addEventListener("click", () => {
   persistWorkspace();
 });
 
+detailExpandButton.addEventListener("click", () => toggleExpandedPanel("detail"));
+chatExpandButton.addEventListener("click", () => toggleExpandedPanel("chat"));
+detailFullscreenButton.addEventListener("click", () => toggleFullscreenPanel("detail"));
+chatFullscreenButton.addEventListener("click", () => toggleFullscreenPanel("chat"));
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.layout.fullscreenPanelId) {
+    state.layout.fullscreenPanelId = null;
+    applyLayoutState();
+    persistWorkspace();
+  }
+});
+
 populateModelSelect(modelSelect, openAiModelOptions, {
   customLabel: "Custom model",
 });
@@ -1473,12 +1654,14 @@ systemPromptInput.addEventListener("input", invalidateAllAgentSessions);
 
 renderPalette();
 const restoredWorkspace = restoreWorkspace();
+initializeDetailResizer();
 syncModelFields();
 syncAgentModelFields();
 syncMaxAgentsInput();
 renderTeamModeDescription();
 renderActivity();
 renderInsights();
+applyLayoutState();
 render();
 
 if (!restoredWorkspace) {
