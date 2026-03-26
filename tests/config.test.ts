@@ -30,6 +30,24 @@ describe("loadConfig", () => {
     });
   });
 
+  it("allows runtime overrides to take precedence", () => {
+    const config = loadConfig(
+      {
+        OPENAI_API_KEY: "key",
+        OPENAI_MODEL: "gpt-4.1-mini",
+      },
+      {
+        model: "gpt-4.1",
+        systemPrompt: "Override prompt",
+      },
+    );
+
+    expect(config).toMatchObject({
+      model: "gpt-4.1",
+      systemPrompt: "Override prompt",
+    });
+  });
+
   it("rejects missing keys", () => {
     expect(() => loadConfig({})).toThrow(/OPENAI_API_KEY is required/);
   });

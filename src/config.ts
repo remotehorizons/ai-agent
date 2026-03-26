@@ -11,7 +11,17 @@ export type AgentConfig = {
   temperature?: number;
 };
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): AgentConfig {
+export type ConfigOverrides = {
+  model?: string;
+  baseUrl?: string;
+  systemPrompt?: string;
+  temperature?: number;
+};
+
+export function loadConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  overrides: ConfigOverrides = {},
+): AgentConfig {
   const provider = env.AI_PROVIDER ?? "openai";
 
   if (provider !== "openai") {
@@ -28,9 +38,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AgentConfig {
     );
   }
 
-  const temperature = env.OPENAI_TEMPERATURE
+  const envTemperature = env.OPENAI_TEMPERATURE
     ? Number(env.OPENAI_TEMPERATURE)
     : undefined;
+  const temperature = overrides.temperature ?? envTemperature;
 
   if (temperature !== undefined && Number.isNaN(temperature)) {
     throw new Error("OPENAI_TEMPERATURE must be a valid number.");
@@ -38,10 +49,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AgentConfig {
 
   return {
     provider,
-    model: env.OPENAI_MODEL ?? "gpt-4.1-mini",
+    model: overrides.model ?? env.OPENAI_MODEL ?? "gpt-4.1-mini",
     apiKey,
-    baseUrl: env.OPENAI_BASE_URL,
+    baseUrl: overrides.baseUrl ?? env.OPENAI_BASE_URL,
     systemPrompt:
+      overrides.systemPrompt ??
       env.AGENT_SYSTEM_PROMPT ??
       "You are a pragmatic AI agent that answers clearly and concisely.",
     temperature,
