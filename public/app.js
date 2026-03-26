@@ -53,6 +53,22 @@ const composer = document.querySelector("#composer");
 const messageInput = document.querySelector("#message-input");
 const sendButton = document.querySelector("#send-button");
 
+const openAiModelOptions = [
+  { value: "gpt-5.2", label: "GPT-5.2" },
+  { value: "gpt-5.2-pro", label: "GPT-5.2 Pro" },
+  { value: "gpt-5.1", label: "GPT-5.1" },
+  { value: "gpt-5", label: "GPT-5" },
+  { value: "gpt-5-pro", label: "GPT-5 Pro" },
+  { value: "gpt-5-mini", label: "GPT-5 Mini" },
+  { value: "gpt-5-nano", label: "GPT-5 Nano" },
+  { value: "gpt-4.1", label: "GPT-4.1" },
+  { value: "gpt-4.1-mini", label: "GPT-4.1 Mini" },
+  { value: "gpt-4.1-nano", label: "GPT-4.1 Nano" },
+  { value: "gpt-4o", label: "GPT-4o" },
+  { value: "gpt-4o-mini", label: "GPT-4o Mini" },
+  { value: "chatgpt-4o-latest", label: "ChatGPT-4o Latest" },
+];
+
 const paletteRoles = [
   {
     id: "pm",
@@ -156,6 +172,32 @@ const teamModes = [
     roles: ["pm", "engineer", "reviewer", "overseer"],
   },
 ];
+
+function populateModelSelect(select, options, config = {}) {
+  const {
+    workspaceLabel,
+    workspaceValue,
+    customLabel = "Custom model",
+    customValue = "custom",
+  } = config;
+  const currentValue = select.value;
+
+  select.replaceChildren();
+
+  if (workspaceLabel && workspaceValue) {
+    select.add(new Option(workspaceLabel, workspaceValue));
+  }
+
+  for (const option of options) {
+    select.add(new Option(option.label, option.value));
+  }
+
+  select.add(new Option(customLabel, customValue));
+
+  if (currentValue) {
+    select.value = currentValue;
+  }
+}
 
 const state = {
   agents: [],
@@ -1407,6 +1449,15 @@ clearActivityButton.addEventListener("click", () => {
   state.activity = [];
   renderActivity();
   persistWorkspace();
+});
+
+populateModelSelect(modelSelect, openAiModelOptions, {
+  customLabel: "Custom model",
+});
+populateModelSelect(agentModelSelect, openAiModelOptions, {
+  workspaceLabel: "Inherit workspace default",
+  workspaceValue: "workspace",
+  customLabel: "Custom / future model",
 });
 
 modelSelect.addEventListener("change", syncModelFields);
