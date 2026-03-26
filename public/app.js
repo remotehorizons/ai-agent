@@ -44,6 +44,8 @@ const agentStatus = document.querySelector("#agent-status");
 const agentApprovalSummary = document.querySelector("#agent-approval-summary");
 const agentRunCount = document.querySelector("#agent-run-count");
 const agentSpawnCount = document.querySelector("#agent-spawn-count");
+const agentTotalTokens = document.querySelector("#agent-total-tokens");
+const agentLastTokenUsage = document.querySelector("#agent-last-token-usage");
 const agentOutput = document.querySelector("#agent-output");
 const reviewerList = document.querySelector("#reviewer-list");
 const sessionStatus = document.querySelector("#session-status");
@@ -224,6 +226,12 @@ function defaultMetrics() {
     changesRequested: 0,
     directMessages: 0,
     spawnedAgents: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    lastInputTokens: 0,
+    lastOutputTokens: 0,
+    lastTotalTokens: 0,
   };
 }
 
@@ -266,7 +274,17 @@ function sanitizeMetrics(metrics) {
     changesRequested: Number(metrics.changesRequested) || 0,
     directMessages: Number(metrics.directMessages) || 0,
     spawnedAgents: Number(metrics.spawnedAgents) || 0,
+    inputTokens: Number(metrics.inputTokens) || 0,
+    outputTokens: Number(metrics.outputTokens) || 0,
+    totalTokens: Number(metrics.totalTokens) || 0,
+    lastInputTokens: Number(metrics.lastInputTokens) || 0,
+    lastOutputTokens: Number(metrics.lastOutputTokens) || 0,
+    lastTotalTokens: Number(metrics.lastTotalTokens) || 0,
   };
+}
+
+function formatTokenCount(value) {
+  return new Intl.NumberFormat().format(Number(value) || 0);
 }
 
 function serializeWorkspace() {
@@ -675,7 +693,11 @@ function createAgentCard(agent) {
     <p>${agent.mission}</p>
     <div class="agent-card-footer">
       <span>${approvals.approved}/${approvals.total || 0} approvals</span>
+      <span>${formatTokenCount(agent.metrics.totalTokens)} tokens</span>
+    </div>
+    <div class="agent-card-footer">
       <span>${effectiveModel}</span>
+      <span>Last ${formatTokenCount(agent.metrics.lastTotalTokens)}</span>
     </div>
   `;
 
@@ -848,6 +870,8 @@ function renderDetails() {
   agentApprovalSummary.textContent = `${approvals.approved} / ${approvals.total}`;
   agentRunCount.textContent = String(agent.metrics.runs);
   agentSpawnCount.textContent = String(agent.metrics.spawnedAgents);
+  agentTotalTokens.textContent = formatTokenCount(agent.metrics.totalTokens);
+  agentLastTokenUsage.textContent = formatTokenCount(agent.metrics.lastTotalTokens);
   agentOutput.value = agent.lastOutput;
   sessionStatus.textContent = agent.sessionId
     ? `Session ${agent.sessionId.slice(0, 8)}...`
@@ -1036,6 +1060,18 @@ async function sendAgentMessage(agent, message) {
   });
 
   agent.sessionId = payload.sessionId;
+  const usage = payload.usage ?? {
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+  };
+  agent.metrics.inputTokens += Number(usage.inputTokens) || 0;
+  agent.metrics.outputTokens += Number(usage.outputTokens) || 0;
+  agent.metrics.totalTokens += Number(usage.totalTokens) || 0;
+  agent.metrics.lastInputTokens = Number(usage.inputTokens) || 0;
+  agent.metrics.lastOutputTokens = Number(usage.outputTokens) || 0;
+  agent.metrics.lastTotalTokens = Number(usage.totalTokens) || 0;
+
   return payload.reply;
 }
 
