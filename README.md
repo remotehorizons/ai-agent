@@ -97,7 +97,7 @@ npm run dev -- --base-url http://localhost:11434/v1 --model llama3.2
 
 The browser UI exposes the same runtime overrides when a new session starts:
 
-- `Model`
+- `Model` from a picker, with a custom-model option for compatible endpoints
 - `Temperature`
 - `Base URL`
 - `System Prompt`

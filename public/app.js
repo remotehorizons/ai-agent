@@ -6,6 +6,9 @@ const sessionStatus = document.querySelector("#session-status");
 const messageTemplate = document.querySelector("#message-template");
 const sendButton = document.querySelector("#send-button");
 const settingsForm = document.querySelector("#settings-form");
+const modelSelect = document.querySelector("#modelSelect");
+const customModelGroup = document.querySelector("#customModelGroup");
+const customModelInput = document.querySelector("#customModel");
 
 let sessionId = null;
 
@@ -32,9 +35,17 @@ function setPending(isPending) {
 function getOverrides() {
   const formData = new FormData(settingsForm);
   const temperatureValue = formData.get("temperature");
+  const selectedModel = formData.get("modelSelect");
+  const customModel = formData.get("customModel");
+  const model =
+    selectedModel === "custom"
+      ? typeof customModel === "string" && customModel.trim()
+        ? customModel.trim()
+        : undefined
+      : selectedModel || undefined;
 
   return {
-    model: formData.get("model") || undefined,
+    model,
     baseUrl: formData.get("baseUrl") || undefined,
     systemPrompt: formData.get("systemPrompt") || undefined,
     temperature:
@@ -42,6 +53,12 @@ function getOverrides() {
         ? Number(temperatureValue)
         : undefined,
   };
+}
+
+function syncModelFields() {
+  const showCustomModel = modelSelect.value === "custom";
+  customModelGroup.style.display = showCustomModel ? "grid" : "none";
+  customModelInput.required = showCustomModel;
 }
 
 async function postJson(url, body) {
@@ -121,6 +138,9 @@ resetButton.addEventListener("click", async () => {
     setPending(false);
   }
 });
+
+modelSelect.addEventListener("change", syncModelFields);
+syncModelFields();
 
 appendMessage(
   "system",
