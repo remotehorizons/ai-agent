@@ -17,14 +17,14 @@
       <header class="hero">
         <div class="hero-topline">
           <p class="eyebrow">Consensus workspace</p>
-          <div class="hero-badge">Human-in-the-loop optional</div>
+          <div class="hero-badge">Miro-style orchestration foundation</div>
         </div>
         <div class="hero-grid">
           <div>
             <h1>Bluebird Agent Studio</h1>
             <p class="lede">
-              Compose a crew of specialists, route work across them, and make
-              approval visible before anything is marked complete.
+              Shape teams, measure coordination quality, and let lead agents
+              expand the crew before mistakes harden into process.
             </p>
           </div>
           <section class="hero-summary panel">
@@ -49,12 +49,33 @@
           <section class="panel stack">
             <div class="section-heading">
               <div>
+                <p class="section-kicker">Team Design</p>
+                <h2>Compose Workspace</h2>
+              </div>
+              <button id="seed-button" class="ghost-button" type="button">
+                Starter Team
+              </button>
+            </div>
+            <label class="field">
+              <span>Team Creation Mode</span>
+              <select id="team-mode-select">
+                <option value="delivery">Delivery Pod</option>
+                <option value="studio">Studio Squad</option>
+                <option value="lean">Lean Pod</option>
+              </select>
+            </label>
+            <button id="compose-team-button" class="primary-button" type="button">
+              Compose Team Mode
+            </button>
+            <p id="team-mode-description" class="support-copy"></p>
+          </section>
+
+          <section class="panel stack">
+            <div class="section-heading">
+              <div>
                 <p class="section-kicker">Palette</p>
                 <h2>Spawn Agents</h2>
               </div>
-              <button id="seed-button" class="ghost-button" type="button">
-                Load Starter Team
-              </button>
             </div>
             <div id="palette" class="palette-grid"></div>
           </section>
@@ -71,7 +92,7 @@
               <textarea
                 id="brief-input"
                 rows="6"
-                placeholder="Design a launch-ready agent workflow UI where a product manager defines scope, a software engineer drafts the implementation, and reviewers must sign off before release."
+                placeholder="Build a clickable, freeform orchestration interface where a product manager and systems architect can grow the team, design leads keep the UI coherent, and overseers reduce avoidable mistakes."
               ></textarea>
             </label>
             <div class="settings-grid">
@@ -90,7 +111,7 @@
                 <input
                   id="customModel"
                   name="customModel"
-                  placeholder="llama3.2 or another OpenAI-compatible model"
+                  placeholder="gpt-5.4 or another OpenAI-compatible model"
                 />
               </label>
               <label class="field">
@@ -119,13 +140,40 @@
               <textarea
                 id="systemPrompt"
                 rows="4"
-                placeholder="Keep responses concrete, ship-worthy, and explicit about tradeoffs."
+                placeholder="Keep responses concrete, ship-worthy, and explicit about tradeoffs. Prefer reliable workflows over heroics."
               ></textarea>
             </label>
           </section>
         </aside>
 
         <section class="main-column">
+          <section class="panel metrics-panel">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Efficiency</p>
+                <h2>Workflow Health</h2>
+              </div>
+            </div>
+            <div class="metrics-grid">
+              <article class="metric-card">
+                <span id="metric-efficiency">0</span>
+                <label>Efficiency score</label>
+              </article>
+              <article class="metric-card">
+                <span id="metric-throughput">0</span>
+                <label>Throughput</label>
+              </article>
+              <article class="metric-card">
+                <span id="metric-approval-rate">0%</span>
+                <label>Approval rate</label>
+              </article>
+              <article class="metric-card">
+                <span id="metric-rework-rate">0%</span>
+                <label>Rework pressure</label>
+              </article>
+            </div>
+          </section>
+
           <section class="panel board-panel">
             <div class="section-heading">
               <div>
@@ -181,19 +229,34 @@
         </section>
 
         <aside class="detail-column">
+          <section class="panel insights-panel">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Overseer</p>
+                <h2>Operational Advice</h2>
+              </div>
+            </div>
+            <div id="insights-list" class="insights-list"></div>
+          </section>
+
           <section class="panel detail-panel">
             <div class="section-heading">
               <div>
                 <p class="section-kicker">Inspector</p>
                 <h2>Selected Agent</h2>
               </div>
-              <button id="delete-agent-button" class="ghost-button danger" type="button">
-                Remove
-              </button>
+              <div class="inline-actions inspector-actions">
+                <button id="spawn-helper-button" class="ghost-button" type="button">
+                  Spawn Helpers
+                </button>
+                <button id="delete-agent-button" class="ghost-button danger" type="button">
+                  Remove
+                </button>
+              </div>
             </div>
 
             <div id="empty-state" class="empty-state">
-              Create an agent from the palette or load the starter team.
+              Create an agent from the palette or compose a team mode.
             </div>
 
             <div id="detail-form" class="detail-form hidden">
@@ -238,6 +301,14 @@
                 <div>
                   <p>Approvals</p>
                   <strong id="agent-approval-summary">0 / 0</strong>
+                </div>
+                <div>
+                  <p>Runs</p>
+                  <strong id="agent-run-count">0</strong>
+                </div>
+                <div>
+                  <p>Spawns</p>
+                  <strong id="agent-spawn-count">0</strong>
                 </div>
               </div>
               <div class="reviewer-block">
