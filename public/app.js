@@ -1,3 +1,5 @@
+import { extractSpawnActions } from "./agent-actions.js";
+
 const palette = document.querySelector("#palette");
 const briefInput = document.querySelector("#brief-input");
 const maxAgentsInput = document.querySelector("#maxAgents");
@@ -1029,6 +1031,14 @@ function buildAgentSystemPrompt(agent) {
     .map((reviewerId) => state.agents.find((entry) => entry.id === reviewerId)?.name)
     .filter(Boolean)
     .join(", ");
+  const spawnInstruction = getRoleConfig(agent.roleId).canSpawn
+    ? [
+        "You may create additional agents when the work needs more specialist roles.",
+        `If you want the app to create agents, end your reply with a JSON block using only these role ids: ${paletteRoles.map((role) => role.id).join(", ")}.`,
+        'Use this schema: {"spawn":[{"roleId":"qa","mission":"Pressure-test approval edge cases.","name":"Optional custom name"}],"waysOfWorking":["Optional coordination rule"],"summary":"Why these agents should be added."}',
+        "Keep spawn to at most 3 agents.",
+      ].join("\n")
+    : "";
 
   return [
     globalPolicy,
@@ -1039,6 +1049,7 @@ function buildAgentSystemPrompt(agent) {
       ? `Use the model routing preference: ${getEffectiveAgentModel(agent)}.`
       : "",
     reviewerNames ? `Your work must be reviewed by: ${reviewerNames}.` : "",
+    spawnInstruction,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -1130,6 +1141,20 @@ async function runSelectedAgent() {
     agent.metrics.runs += 1;
     updateAgentStatusFromApprovals(agent);
     addMessage(agent.id, "assistant", reply);
+    if (getRoleConfig(agent.roleId).canSpawn) {
+      const createdCount = applySpawnRecommendations(
+        agent,
+        extractSpawnActions(reply, paletteRoles.map((role) => role.id)),
+        [],
+        `${agent.name} expanded the team after reviewing the workspace brief.`,
+      );
+      if (createdCount) {
+        addActivity(
+          agent.name,
+          `Created ${createdCount} agent${createdCount === 1 ? "" : "s"} from its draft output.`,
+        );
+      }
+    }
     addActivity(agent.name, "Produced a fresh draft and reset prior approvals.");
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -1241,42 +1266,41 @@ function buildWorkspaceSnapshot() {
   ].join("\n\n");
 }
 
-function tryParseJson(text) {
-  const fencedMatch = text.match(/```json\s*([\s\S]*?)```/i);
-  const source = fencedMatch ? fencedMatch[1] : text;
-  const start = source.indexOf("{");
-  const end = source.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) {
-    return null;
-  }
-  try {
-    return JSON.parse(source.slice(start, end + 1));
-  } catch {
-    return null;
-  }
-}
+function applySpawnRecommendations(agent, recommendations, fallbackPlan, fallbackSummary) {
+  const nextPlan = recommendations.plan.length ? recommendations.plan : fallbackPlan;
+  let createdCount = 0;
 
-function normalizeSpawnPlan(parsed) {
-  if (!parsed || !Array.isArray(parsed.spawn)) {
-    return [];
+  for (const suggestion of nextPlan) {
+    const role = getRoleConfig(suggestion.roleId);
+    const created = createAgent(suggestion.roleId, {
+      name: suggestion.name || undefined,
+      mission: suggestion.mission || role.mission,
+      spawnedBy: agent.id,
+      activity: `${role.label} spawned by ${agent.name}.`,
+    });
+    if (!created) {
+      break;
+    }
+    createdCount += 1;
   }
 
-  return parsed.spawn
-    .map((entry) => {
-      const role = getRoleConfig(String(entry.roleId || ""));
-      if (!role) {
-        return null;
-      }
-      return {
-        roleId: role.id,
-        mission:
-          typeof entry.mission === "string" && entry.mission.trim()
-            ? entry.mission.trim()
-            : role.mission,
-      };
-    })
-    .filter(Boolean)
-    .slice(0, 3);
+  if (!createdCount) {
+    return 0;
+  }
+
+  assignDefaultReviewers();
+  addInsight({
+    title: `${agent.name} recommendations`,
+    body: recommendations.summary || fallbackSummary,
+    bullets: recommendations.waysOfWorking.length
+      ? recommendations.waysOfWorking
+      : [
+          "Keep architecture and design aligned before adding more engineers.",
+          "Use QA and review as bottleneck detectors, not just final gates.",
+        ],
+  });
+
+  return createdCount;
 }
 
 function fallbackSpawnPlan(agent) {
@@ -1330,39 +1354,12 @@ async function spawnHelpersForSelected() {
 
     const reply = await sendAgentMessage(agent, spawnPrompt);
     addMessage(agent.id, "assistant", reply);
-
-    const parsed = tryParseJson(reply);
-    const plan = normalizeSpawnPlan(parsed).length
-      ? normalizeSpawnPlan(parsed)
-      : fallbackSpawnPlan(agent);
-    const waysOfWorking = Array.isArray(parsed?.waysOfWorking)
-      ? parsed.waysOfWorking.filter((entry) => typeof entry === "string").slice(0, 4)
-      : [];
-    const summary =
-      typeof parsed?.summary === "string" && parsed.summary.trim()
-        ? parsed.summary.trim()
-        : `${agent.name} recommended expanding the team to reduce delivery risk.`;
-
-    for (const suggestion of plan) {
-      const created = createAgent(suggestion.roleId, {
-        mission: suggestion.mission,
-        spawnedBy: agent.id,
-        activity: `${getRoleConfig(suggestion.roleId).label} spawned by ${agent.name}.`,
-      });
-      if (!created) {
-        break;
-      }
-    }
-
-    assignDefaultReviewers();
-    addInsight({
-      title: `${agent.name} recommendations`,
-      body: summary,
-      bullets: waysOfWorking.length ? waysOfWorking : [
-        "Keep architecture and design aligned before adding more engineers.",
-        "Use QA and review as bottleneck detectors, not just final gates.",
-      ],
-    });
+    applySpawnRecommendations(
+      agent,
+      extractSpawnActions(reply, paletteRoles.map((role) => role.id)),
+      fallbackSpawnPlan(agent),
+      `${agent.name} recommended expanding the team to reduce delivery risk.`,
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     addActivity(agent.name, `Expansion analysis failed: ${errorMessage}`);
@@ -1390,6 +1387,20 @@ composer.addEventListener("submit", async (event) => {
   try {
     const reply = await sendAgentMessage(agent, message);
     addMessage(agent.id, "assistant", reply);
+    if (getRoleConfig(agent.roleId).canSpawn) {
+      const createdCount = applySpawnRecommendations(
+        agent,
+        extractSpawnActions(reply, paletteRoles.map((role) => role.id)),
+        [],
+        `${agent.name} expanded the team in response to a direct request.`,
+      );
+      if (createdCount) {
+        addActivity(
+          agent.name,
+          `Created ${createdCount} agent${createdCount === 1 ? "" : "s"} from the direct message thread.`,
+        );
+      }
+    }
     addActivity(agent.name, "Responded in the direct message thread.");
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
