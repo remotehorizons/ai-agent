@@ -1,3 +1,5 @@
+import { findRoleConfig } from "./app-state.js";
+
 const palette = document.querySelector("#palette");
 const briefInput = document.querySelector("#brief-input");
 const maxAgentsInput = document.querySelector("#maxAgents");
@@ -1188,7 +1190,7 @@ function normalizeSpawnPlan(parsed) {
 
   return parsed.spawn
     .map((entry) => {
-      const role = getRoleConfig(String(entry.roleId || ""));
+      const role = findRoleConfig(paletteRoles, String(entry.roleId || ""));
       if (!role) {
         return null;
       }
