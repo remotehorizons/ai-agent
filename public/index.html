@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI Agent</title>
+    <title>Bluebird Agent Studio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -15,105 +15,271 @@
   <body>
     <div class="page-shell">
       <header class="hero">
-        <div class="hero-bar">
-          <p class="eyebrow">Remote Horizons</p>
-          <div class="hero-pill">Bluebird workspace</div>
+        <div class="hero-topline">
+          <p class="eyebrow">Consensus workspace</p>
+          <div class="hero-badge">Human-in-the-loop optional</div>
         </div>
-        <h1>Bluebird AI Console</h1>
-        <p class="lede">
-          A polished interface for model selection, prompt work, and persistent
-          AI conversations, designed to feel like a finished product.
-        </p>
+        <div class="hero-grid">
+          <div>
+            <h1>Bluebird Agent Studio</h1>
+            <p class="lede">
+              Compose a crew of specialists, route work across them, and make
+              approval visible before anything is marked complete.
+            </p>
+          </div>
+          <section class="hero-summary panel">
+            <div class="summary-stat">
+              <span id="agent-count">0</span>
+              <label>Live agents</label>
+            </div>
+            <div class="summary-stat">
+              <span id="pending-count">0</span>
+              <label>Pending approvals</label>
+            </div>
+            <div class="summary-stat">
+              <span id="approved-count">0</span>
+              <label>Approved outputs</label>
+            </div>
+          </section>
+        </div>
       </header>
 
-      <main class="layout">
-        <section class="panel controls-panel">
-          <div class="panel-heading">
-            <h2>Session Controls</h2>
-            <p>Tune each new browser session without touching `.env`.</p>
-          </div>
-
-          <form id="settings-form" class="settings-form">
-            <label>
-              <span>Model</span>
-              <select id="modelSelect" name="modelSelect">
-                <option value="gpt-4.1-mini" selected>GPT-4.1 Mini</option>
-                <option value="gpt-4.1">GPT-4.1</option>
-                <option value="gpt-4o-mini">GPT-4o Mini</option>
-                <option value="gpt-4o">GPT-4o</option>
-                <option value="custom">Custom model</option>
-              </select>
-            </label>
-
-            <label id="customModelGroup" class="hidden-field">
-              <span>Custom Model Name</span>
-              <input
-                id="customModel"
-                name="customModel"
-                placeholder="llama3.2 or another OpenAI-compatible model"
-              />
-            </label>
-
-            <label>
-              <span>Temperature</span>
-              <input
-                id="temperature"
-                name="temperature"
-                type="number"
-                min="0"
-                max="2"
-                step="0.1"
-                placeholder="0.2"
-              />
-            </label>
-
-            <label>
-              <span>Base URL</span>
-              <input
-                id="baseUrl"
-                name="baseUrl"
-                placeholder="http://localhost:11434/v1"
-              />
-            </label>
-
-            <label>
-              <span>System Prompt</span>
-              <textarea
-                id="systemPrompt"
-                name="systemPrompt"
-                rows="5"
-                placeholder="You are a pragmatic AI agent that answers clearly and concisely."
-              ></textarea>
-            </label>
-          </form>
-
-          <div class="session-actions">
-            <button id="reset-button" class="ghost-button" type="button">
-              Clear Conversation
-            </button>
-            <p id="session-status" class="session-status">No active session yet.</p>
-          </div>
-        </section>
-
-        <section class="panel chat-panel">
-          <div id="messages" class="messages" aria-live="polite"></div>
-
-          <form id="composer" class="composer">
-            <textarea
-              id="message-input"
-              name="message"
-              rows="3"
-              placeholder="Ask the agent to draft, summarize, plan, or critique."
-              required
-            ></textarea>
-            <div class="composer-row">
-              <p class="hint">Enter sends. Shift+Enter adds a new line.</p>
-              <button id="send-button" class="primary-button" type="submit">
-                Send
+      <main class="workspace">
+        <aside class="sidebar">
+          <section class="panel stack">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Palette</p>
+                <h2>Spawn Agents</h2>
+              </div>
+              <button id="seed-button" class="ghost-button" type="button">
+                Load Starter Team
               </button>
             </div>
-          </form>
+            <div id="palette" class="palette-grid"></div>
+          </section>
+
+          <section class="panel stack">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Workspace Brief</p>
+                <h2>Shared Task</h2>
+              </div>
+            </div>
+            <label class="field">
+              <span>Goal</span>
+              <textarea
+                id="brief-input"
+                rows="6"
+                placeholder="Design a launch-ready agent workflow UI where a product manager defines scope, a software engineer drafts the implementation, and reviewers must sign off before release."
+              ></textarea>
+            </label>
+            <div class="settings-grid">
+              <label class="field">
+                <span>Model</span>
+                <select id="modelSelect" name="modelSelect">
+                  <option value="gpt-4.1-mini" selected>GPT-4.1 Mini</option>
+                  <option value="gpt-4.1">GPT-4.1</option>
+                  <option value="gpt-4o-mini">GPT-4o Mini</option>
+                  <option value="gpt-4o">GPT-4o</option>
+                  <option value="custom">Custom model</option>
+                </select>
+              </label>
+              <label id="customModelGroup" class="field hidden-field">
+                <span>Custom Model</span>
+                <input
+                  id="customModel"
+                  name="customModel"
+                  placeholder="llama3.2 or another OpenAI-compatible model"
+                />
+              </label>
+              <label class="field">
+                <span>Temperature</span>
+                <input
+                  id="temperature"
+                  name="temperature"
+                  type="number"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  placeholder="0.4"
+                />
+              </label>
+              <label class="field">
+                <span>Base URL</span>
+                <input
+                  id="baseUrl"
+                  name="baseUrl"
+                  placeholder="http://localhost:11434/v1"
+                />
+              </label>
+            </div>
+            <label class="field">
+              <span>Global System Policy</span>
+              <textarea
+                id="systemPrompt"
+                rows="4"
+                placeholder="Keep responses concrete, ship-worthy, and explicit about tradeoffs."
+              ></textarea>
+            </label>
+          </section>
+        </aside>
+
+        <section class="main-column">
+          <section class="panel board-panel">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Workflow Board</p>
+                <h2>Agent Consensus Map</h2>
+              </div>
+              <div class="inline-actions">
+                <button id="run-selected-button" class="ghost-button" type="button">
+                  Run Selected
+                </button>
+                <button id="review-selected-button" class="primary-button" type="button">
+                  Request Approval
+                </button>
+              </div>
+            </div>
+            <div class="board-lanes">
+              <section class="lane">
+                <div class="lane-header">
+                  <h3>Drafting</h3>
+                  <span id="lane-drafting-count">0</span>
+                </div>
+                <div id="lane-drafting" class="lane-list"></div>
+              </section>
+              <section class="lane">
+                <div class="lane-header">
+                  <h3>In Review</h3>
+                  <span id="lane-review-count">0</span>
+                </div>
+                <div id="lane-review" class="lane-list"></div>
+              </section>
+              <section class="lane">
+                <div class="lane-header">
+                  <h3>Approved</h3>
+                  <span id="lane-approved-count">0</span>
+                </div>
+                <div id="lane-approved" class="lane-list"></div>
+              </section>
+            </div>
+          </section>
+
+          <section class="panel activity-panel">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Simulation</p>
+                <h2>Activity Feed</h2>
+              </div>
+              <button id="clear-activity-button" class="ghost-button" type="button">
+                Clear Log
+              </button>
+            </div>
+            <div id="activity-feed" class="activity-feed" aria-live="polite"></div>
+          </section>
         </section>
+
+        <aside class="detail-column">
+          <section class="panel detail-panel">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Inspector</p>
+                <h2>Selected Agent</h2>
+              </div>
+              <button id="delete-agent-button" class="ghost-button danger" type="button">
+                Remove
+              </button>
+            </div>
+
+            <div id="empty-state" class="empty-state">
+              Create an agent from the palette or load the starter team.
+            </div>
+
+            <div id="detail-form" class="detail-form hidden">
+              <label class="field">
+                <span>Name</span>
+                <input id="agent-name" type="text" />
+              </label>
+              <label class="field">
+                <span>Role</span>
+                <input id="agent-role" type="text" disabled />
+              </label>
+              <label class="field">
+                <span>Mission</span>
+                <textarea id="agent-mission" rows="4"></textarea>
+              </label>
+              <div class="settings-grid detail-settings">
+                <label class="field">
+                  <span>Model Routing</span>
+                  <select id="agent-model-select">
+                    <option value="workspace">Inherit workspace default</option>
+                    <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
+                    <option value="gpt-4.1">GPT-4.1</option>
+                    <option value="gpt-4o-mini">GPT-4o Mini</option>
+                    <option value="gpt-4o">GPT-4o</option>
+                    <option value="custom">Custom / future model</option>
+                  </select>
+                </label>
+                <label id="agent-custom-model-group" class="field hidden-field">
+                  <span>Custom Agent Model</span>
+                  <input
+                    id="agent-custom-model"
+                    type="text"
+                    placeholder="gpt-5.4 or any provider-specific model id"
+                  />
+                </label>
+              </div>
+              <div class="detail-meta">
+                <div>
+                  <p>Status</p>
+                  <strong id="agent-status">Idle</strong>
+                </div>
+                <div>
+                  <p>Approvals</p>
+                  <strong id="agent-approval-summary">0 / 0</strong>
+                </div>
+              </div>
+              <div class="reviewer-block">
+                <div class="reviewer-header">
+                  <div>
+                    <p class="section-kicker">Reviewers</p>
+                    <h3>Approval Chain</h3>
+                  </div>
+                </div>
+                <div id="reviewer-list" class="reviewer-list"></div>
+              </div>
+              <label class="field">
+                <span>Last Output</span>
+                <textarea id="agent-output" rows="9" readonly></textarea>
+              </label>
+            </div>
+          </section>
+
+          <section class="panel chat-panel">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Direct Message</p>
+                <h2>Talk To Agent</h2>
+              </div>
+              <p id="session-status" class="session-status">No agent selected.</p>
+            </div>
+            <div id="messages" class="messages"></div>
+            <form id="composer" class="composer">
+              <textarea
+                id="message-input"
+                rows="4"
+                placeholder="Ask the selected agent to refine the work, critique another agent, or propose a next step."
+              ></textarea>
+              <div class="composer-row">
+                <p class="hint">Messages are scoped to the selected agent.</p>
+                <button id="send-button" class="primary-button" type="submit">
+                  Send
+                </button>
+              </div>
+            </form>
+          </section>
+        </aside>
       </main>
     </div>
 
@@ -121,6 +287,16 @@
       <article class="message">
         <div class="message-meta"></div>
         <div class="message-body"></div>
+      </article>
+    </template>
+
+    <template id="activity-template">
+      <article class="activity-item">
+        <div class="activity-topline">
+          <strong></strong>
+          <span></span>
+        </div>
+        <p></p>
       </article>
     </template>
 
