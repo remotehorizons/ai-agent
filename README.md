@@ -6,6 +6,7 @@ A minimal TypeScript CLI agent with:
 - configurable model selection
 - optional OpenAI-compatible base URL support
 - one-off and interactive chat modes
+- a browser UI backed by the same agent runtime
 
 ## Setup
 
@@ -43,11 +44,26 @@ Run in interactive mode:
 npm run dev
 ```
 
+Run the web UI:
+
+```bash
+npm run dev:web
+```
+
+Then open `http://localhost:3000`.
+
 Build and run the compiled CLI:
 
 ```bash
 npm run build
 npm start -- "Give me three startup ideas in climate tech."
+```
+
+Build and run the compiled web server:
+
+```bash
+npm run build
+npm run start:web
 ```
 
 ## Configuration
@@ -78,6 +94,25 @@ You can also override config from the CLI:
 npm run dev -- --model gpt-4.1-mini --temperature 0.1 "Explain idempotency."
 npm run dev -- --base-url http://localhost:11434/v1 --model llama3.2
 ```
+
+The browser UI exposes the same runtime overrides when a new session starts:
+
+- `Model`
+- `Temperature`
+- `Base URL`
+- `System Prompt`
+
+Once a session is active, the conversation keeps its own memory until you reset it.
+
+## Web UI
+
+The browser app is served by `Express` and uses the same `Agent` core as the CLI.
+
+- `POST /api/chat` starts or continues a browser chat session
+- `POST /api/reset` clears a session's conversation memory
+- `GET /api/health` is a lightweight health check
+
+If you want to test the chat path end to end, add a real `OPENAI_API_KEY` to `.env` and start the web server.
 
 ## Testing
 
